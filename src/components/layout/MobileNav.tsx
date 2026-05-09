@@ -1,0 +1,42 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Calendar, Home, User, Bell } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export function MobileNav({ signedIn }: { signedIn: boolean }) {
+  const pathname = usePathname();
+  if (!signedIn) return null;
+
+  const items = [
+    { href: "/events", label: "活动", icon: Calendar, match: /^\/events/ },
+    { href: "/me", label: "我", icon: Home, match: /^\/me$/ },
+    { href: "/notifications", label: "通知", icon: Bell, match: /^\/notifications/ },
+    { href: "/me/profile", label: "主页", icon: User, match: /^\/me\/profile/ },
+  ];
+
+  return (
+    <nav className="md:hidden fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg-warm/95 backdrop-blur-md">
+      <ul className="grid grid-cols-4">
+        {items.map((it) => {
+          const active = it.match.test(pathname ?? "");
+          const Icon = it.icon;
+          return (
+            <li key={it.href}>
+              <Link
+                href={it.href}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 py-2.5 text-xs transition-colors",
+                  active ? "text-trans-blue-deep" : "text-ink-muted",
+                )}
+              >
+                <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.8} />
+                <span>{it.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}

@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-bg-warm text-ink antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  ::selection {
+    background-color: rgb(91 206 250 / 0.4);
+    color: #1F1B17;
+  }
+
+  /* Subtle gradient hairline at the very top of the app */
+  body::before {
+    content: "";
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #F5A9B8 0%, #FFFFFF 50%, #5BCEFA 100%);
+    z-index: 60;
+    pointer-events: none;
+  }
+}
+
+@layer components {
+  .prose-trans {
+    @apply text-ink leading-relaxed;
+  }
+  .prose-trans :where(p):not(:where([class~="not-prose"] *)) {
+    @apply my-3;
+  }
+  .prose-trans :where(h1, h2, h3):not(:where([class~="not-prose"] *)) {
+    @apply font-serif tracking-tight mt-6 mb-3;
+  }
+  .prose-trans :where(h1):not(:where([class~="not-prose"] *)) {
+    @apply text-h1;
+  }
+  .prose-trans :where(h2):not(:where([class~="not-prose"] *)) {
+    @apply text-h2;
+  }
+  .prose-trans :where(h3):not(:where([class~="not-prose"] *)) {
+    @apply text-h3;
+  }
+  .prose-trans :where(a):not(:where([class~="not-prose"] *)) {
+    @apply text-trans-blue-deep underline-offset-4 hover:underline;
+  }
+  .prose-trans :where(code):not(:where([class~="not-prose"] *)) {
+    @apply font-mono text-[0.9em] bg-bg-muted px-1.5 py-0.5 rounded;
+  }
+  .prose-trans :where(blockquote):not(:where([class~="not-prose"] *)) {
+    @apply border-l-2 border-trans-blue pl-4 italic text-ink-muted my-4;
+  }
+  .prose-trans :where(ul):not(:where([class~="not-prose"] *)) {
+    @apply list-disc pl-6 my-3 space-y-1;
+  }
+  .prose-trans :where(ol):not(:where([class~="not-prose"] *)) {
+    @apply list-decimal pl-6 my-3 space-y-1;
+  }
+}
+
+@layer utilities {
+  .ring-offset-bg-warm {
+    --tw-ring-offset-color: #FAF7F2;
+  }
+}

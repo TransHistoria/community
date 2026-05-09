@@ -1,0 +1,343 @@
+// Prisma schema — 跨性别社群活动平台
+// SQLite-compatible version (used for local verification).
+// Enum-typed fields are declared as String here; TypeScript types live in src/lib/enums.ts.
+// The runtime values match exactly so app code is unchanged.
+// To switch to Postgres for production: change provider to "postgresql", and re-add
+// `enum X { ... }` blocks (string values are the source of truth).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 用户
+// ============================================================
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerifiedAt DateTime?
+
+  handle          String    @unique
+  displayName     String
+  pronouns        String?
+  genderIdentity  String?
+  bio             String?
+  avatarUrl       String?
+
+  // UserTier:   GUEST | UNVERIFIED | VERIFIED | TRUSTED | ADMIN
+  tier            String    @default("GUEST")
+  // UserStatus: ACTIVE | SUSPENDED | DELETED
+  status          String    @default("ACTIVE")
+
+  invitedById     String?
+  invitedBy       User?     @relation("Invites", fields: [invitedById], references: [id])
+  invitees        User[]    @relation("Invites")
+
+  applicationId   String?
+  application     Application? @relation(fields: [applicationId], references: [id])
+
+  contacts             ContactMethod[]
+  contactRequestsSent  ContactRequest[] @relation("ContactRequester")
+  contactRequestsRecvd ContactRequest[] @relation("ContactTarget")
+  invitesIssued        InviteCode[]     @relation("InviteIssuer")
+  events               Event[]          @relation("Organizer")
+  registrations        Registration[]
+  comments             Comment[]
+  reportsMade          Report[]         @relation("Reporter")
+  blocksMade           Block[]          @relation("Blocker")
+  blockedBy            Block[]          @relation("Blocked")
+  notifications        Notification[]
+  auditLogs            AuditLog[]       @relation("AuditActor")
+  applicationsReviewed Application[]    @relation("AppReviewer")
+
+  // Auth.js Adapter
+  accounts        Account[]
+  sessions        Session[]
+
+  scheduledDeletionAt DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([handle])
+  @@index([tier])
+  @@index([status])
+}
+
+// ============================================================
+// Auth.js 适配器
+// ============================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================================
+// 准入：邀请码 + 申请审核
+// ============================================================
+
+model InviteCode {
+  code        String    @id
+  issuerId    String
+  issuer      User      @relation("InviteIssuer", fields: [issuerId], references: [id])
+  maxUses     Int       @default(1)
+  usedCount   Int       @default(0)
+  expiresAt   DateTime?
+  note        String?
+  createdAt   DateTime  @default(now())
+
+  @@index([issuerId])
+}
+
+model Application {
+  id            String    @id @default(cuid())
+  email         String
+  // SQLite has no Json type; we store JSON-encoded strings. See src/lib/json.ts.
+  answers       String
+  // AppStatus: PENDING | APPROVED | REJECTED
+  status        String    @default("PENDING")
+  reviewerId    String?
+  reviewer      User?     @relation("AppReviewer", fields: [reviewerId], references: [id])
+  reviewerNote  String?
+  createdAt     DateTime  @default(now())
+  reviewedAt    DateTime?
+  users         User[]
+
+  @@index([status])
+  @@index([email])
+}
+
+// ============================================================
+// 联系方式
+// ============================================================
+
+model ContactMethod {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // ContactKind: WECHAT|TELEGRAM|EMAIL|PHONE|QQ|XHS|WEIBO|DISCORD|OTHER
+  kind        String
+  value       String
+  label       String?
+  // Visibility: PUBLIC | VERIFIED | TRUSTED | HIDDEN_REQUEST
+  visibility  String      @default("VERIFIED")
+  order       Int         @default(0)
+
+  approvedRequests ContactRequest[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+}
+
+model ContactRequest {
+  id           String   @id @default(cuid())
+  requesterId  String
+  requester    User     @relation("ContactRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  targetId     String
+  target       User     @relation("ContactTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  contactId    String?
+  contact      ContactMethod? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  reason       String
+  // ContactReqStatus: PENDING | APPROVED | DECLINED
+  status       String   @default("PENDING")
+  decidedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([requesterId, targetId, contactId])
+  @@index([targetId, status])
+}
+
+// ============================================================
+// 活动
+// ============================================================
+
+model Event {
+  id              String        @id @default(cuid())
+  organizerId     String
+  organizer       User          @relation("Organizer", fields: [organizerId], references: [id])
+  title           String
+  slug            String        @unique
+  // EventCategory: PSYCH_SUPPORT|SOCIAL|SPORTS|ONLINE_GAMING|STUDY|WORKSHOP|ADVOCACY|OTHER
+  category        String
+  // EventFormat: ONLINE | OFFLINE | HYBRID
+  format          String
+  description     String
+  coverUrl        String?
+
+  startAt         DateTime
+  endAt           DateTime
+  timezone        String        @default("Asia/Shanghai")
+
+  city            String?
+  preciseAddr     String?
+  onlineUrl       String?
+
+  capacity              Int?
+  requireApproval       Boolean   @default(false)
+  registrationOpensAt   DateTime?
+  registrationClosesAt  DateTime?
+  customQuestions       String?
+
+  // Visibility: PUBLIC | VERIFIED | TRUSTED
+  visibility      String        @default("VERIFIED")
+  // EventStatus: DRAFT | PUBLISHED | CANCELLED | FINISHED
+  status          String        @default("PUBLISHED")
+
+  registrations   Registration[]
+  comments        Comment[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([organizerId])
+  @@index([startAt])
+  @@index([category])
+  @@index([visibility, status])
+}
+
+model Registration {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  answers   String?
+  // RegStatus: PENDING|CONFIRMED|WAITLIST|DECLINED|CANCELLED|CHECKED_IN|NO_SHOW
+  status    String    @default("CONFIRMED")
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId, status])
+}
+
+// ============================================================
+// 评论
+// ============================================================
+
+model Comment {
+  id         String   @id @default(cuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  body       String
+  parentId   String?
+  parent     Comment? @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[] @relation("Replies")
+  isHidden   Boolean  @default(false)
+  hiddenReason String?
+  createdAt  DateTime @default(now())
+
+  @@index([eventId])
+  @@index([authorId])
+}
+
+// ============================================================
+// 审核与安全
+// ============================================================
+
+model Report {
+  id           String       @id @default(cuid())
+  reporterId   String
+  reporter     User         @relation("Reporter", fields: [reporterId], references: [id])
+  // ReportTarget: USER | EVENT | COMMENT
+  targetType   String
+  targetId     String
+  reason       String
+  // ReportStatus: OPEN | INVESTIGATING | RESOLVED | DISMISSED
+  status       String       @default("OPEN")
+  resolvedNote String?
+  resolvedById String?
+  createdAt    DateTime     @default(now())
+  resolvedAt   DateTime?
+
+  @@index([status])
+  @@index([targetType, targetId])
+}
+
+model Block {
+  id         String   @id @default(cuid())
+  blockerId  String
+  blocker    User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId  String
+  blocked    User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// ============================================================
+// 通知
+// ============================================================
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  payload   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+// ============================================================
+// 审计日志
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation("AuditActor", fields: [actorId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  meta       String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+}
