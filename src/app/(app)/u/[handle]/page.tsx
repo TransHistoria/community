@@ -16,9 +16,10 @@ function resolveBaseUrls(): string[] {
 }
 
 type EventIndexItem = { organizer_handle?: string | null };
+const PROFILE_HANDLE_FALLBACKS = ["placeholder", "cyanmint"] as const;
 
 export async function generateStaticParams() {
-  const handles = new Set<string>(["placeholder", "cyanmint"]);
+  const handles = new Set<string>(PROFILE_HANDLE_FALLBACKS);
 
   for (const baseUrl of resolveBaseUrls()) {
     try {
@@ -32,6 +33,12 @@ export async function generateStaticParams() {
     } catch (err) {
       console.warn(`generateStaticParams: failed to fetch handles from ${baseUrl}`, err);
     }
+  }
+
+  if (handles.size === PROFILE_HANDLE_FALLBACKS.length) {
+    console.warn(
+      "generateStaticParams: using only fallback profile handles; static export may miss real profile pages",
+    );
   }
 
   return Array.from(handles).map((handle) => ({ handle }));

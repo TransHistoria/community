@@ -16,9 +16,10 @@ function resolveBaseUrls(): string[] {
 }
 
 type EventIndexItem = { slug?: string | null };
+const EVENT_SLUG_FALLBACKS = ["placeholder", "event"] as const;
 
 export async function generateStaticParams() {
-  const slugs = new Set<string>(["placeholder", "event"]);
+  const slugs = new Set<string>(EVENT_SLUG_FALLBACKS);
 
   for (const baseUrl of resolveBaseUrls()) {
     try {
@@ -32,6 +33,12 @@ export async function generateStaticParams() {
     } catch (err) {
       console.warn(`generateStaticParams: failed to fetch events from ${baseUrl}`, err);
     }
+  }
+
+  if (slugs.size === EVENT_SLUG_FALLBACKS.length) {
+    console.warn(
+      "generateStaticParams: using only fallback event slugs; static export may miss real event detail pages",
+    );
   }
 
   return Array.from(slugs).map((slug) => ({ slug }));
