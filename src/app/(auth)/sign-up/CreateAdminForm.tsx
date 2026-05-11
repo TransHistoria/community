@@ -64,7 +64,7 @@ export function CreateAdminForm() {
           id="create-admin-secret"
           type="password"
           autoComplete="off"
-          placeholder="CREATE_ADMIN"
+          placeholder="请输入初始化密钥"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
           disabled={pending}
