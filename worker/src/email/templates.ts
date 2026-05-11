@@ -58,7 +58,7 @@ export function totpSetupEmailHtml(params: {
   const html = baseLayout(
     params.appName,
     `<p>你好，</p>
-<p>你的账号已开启两步验证（TOTP）。每次登录时除邮箱外，还需要输入认证器应用生成的 6 位动态验证码。</p>
+<p>你的 <strong>${params.appName}</strong> 账号已配置完成。本平台不使用密码，<strong>认证器动态验证码（TOTP）是唯一的登录凭证</strong>，请按以下步骤完成设置。</p>
 <p><strong>第一步：安装认证器应用</strong></p>
 <p>在手机上安装以下任意一款应用：</p>
 <ul style="margin: 0 0 16px; padding-left: 20px; line-height: 1.9; font-size: 15px;">
@@ -71,11 +71,11 @@ export function totpSetupEmailHtml(params: {
 <p>打开认证器应用，选择「添加账号」→「手动输入」，填写以下密钥：</p>
 <p style="font-size: 18px; letter-spacing: 0.12em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f6f6f6; padding: 12px 14px; border-radius: 8px;">${prettySecret}</p>
 <p style="font-size: 13px; color: #666;">或者在认证器中粘贴以下链接手动导入：<br/><code style="font-size: 11px; word-break: break-all;">${params.otpauthUrl}</code></p>
-<p><strong>第三步：登录时使用验证码</strong></p>
-<p>设置完成后，每次登录时在「验证码」栏输入认证器应用上显示的 6 位数字即可。验证码每 30 秒刷新一次，请在过期前输入。</p>
+<p><strong>第三步：登录</strong></p>
+<p>设置完成后，打开 <strong>${params.appName}</strong>，输入邮箱和认证器应用上显示的 6 位数字即可登录。验证码每 30 秒刷新一次，请在过期前输入。</p>
 <p style="color: #c0392b; font-size: 13px;">⚠️ 请妥善保存上方密钥。若手机丢失或认证器数据被清除，你将需要此密钥来恢复访问。</p>`,
   );
-  const text = `你的账号已开启两步验证（TOTP）。\n\n【第一步】安装认证器应用\n推荐：Google Authenticator、Microsoft Authenticator、Aegis（Android 开源）\n\n【第二步】在认证器中添加账号 → 手动输入密钥：\n${prettySecret}\n\n手动导入链接：${params.otpauthUrl}\n\n【第三步】登录时输入 6 位验证码\n验证码每 30 秒刷新，请在过期前输入。\n\n⚠️ 请妥善保存密钥，丢失设备时需要它来恢复访问。`;
+  const text = `你的 ${params.appName} 账号已配置完成。本平台不使用密码，认证器动态验证码（TOTP）是唯一的登录凭证，请按步骤完成设置。\n\n【第一步】安装认证器应用\n推荐：Google Authenticator、Microsoft Authenticator、Aegis（Android 开源）\n\n【第二步】在认证器中添加账号 → 手动输入密钥：\n${prettySecret}\n\n手动导入链接：${params.otpauthUrl}\n\n【第三步】登录\n打开 ${params.appName}，输入邮箱和认证器显示的 6 位数字即可登录。验证码每 30 秒刷新，请在过期前输入。\n\n⚠️ 请妥善保存密钥，丢失设备时需要它来恢复访问。`;
   return { html, text };
 }
 

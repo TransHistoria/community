@@ -87,7 +87,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
         />
       </div>
       {setupSent ? (
-        <p className="text-xs text-ink-subtle">TOTP 初始化邮件已发送，请查收并扫码后登录。</p>
+        <p className="text-xs text-ink-subtle">TOTP 初始化邮件已发送，请查收并按步骤设置后登录。</p>
       ) : null}
       {error ? (
         <p className="text-sm text-destructive">{error}</p>
