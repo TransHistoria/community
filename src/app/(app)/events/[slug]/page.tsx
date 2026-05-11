@@ -29,7 +29,9 @@ export async function generateStaticParams() {
         if (e.slug) slugs.add(e.slug);
       }
       break;
-    } catch {}
+    } catch (err) {
+      console.warn(`generateStaticParams: failed to fetch events from ${baseUrl}`, err);
+    }
   }
 
   return Array.from(slugs).map((slug) => ({ slug }));

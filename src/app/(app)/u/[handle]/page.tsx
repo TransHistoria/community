@@ -29,7 +29,9 @@ export async function generateStaticParams() {
         if (e.organizer_handle) handles.add(e.organizer_handle);
       }
       break;
-    } catch {}
+    } catch (err) {
+      console.warn(`generateStaticParams: failed to fetch handles from ${baseUrl}`, err);
+    }
   }
 
   return Array.from(handles).map((handle) => ({ handle }));
