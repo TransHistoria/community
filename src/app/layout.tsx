@@ -3,6 +3,7 @@ import "@/styles/globals.css";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SpaRecovery } from "./SpaRecovery";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>
         <AuthProvider>
+          <SpaRecovery />
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
       </body>
