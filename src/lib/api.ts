@@ -2,11 +2,13 @@
 // All mutations that were previously Next.js server actions are now fetch()
 // calls to the worker.
 
-const BASE_URL =
-  (
-    process.env.NEXT_PUBLIC_API_URL ??
-    "https://transcommunity.cyanmint.workers.dev"
-  ).replace(/\/$/, "");
+// Use || so that an empty string (e.g. unset GitHub Actions variable that
+// expands to "") falls through to the hardcoded default, just as undefined
+// would.  ?? only guards against null/undefined, not "".
+const BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://transcommunity.cyanmint.workers.dev"
+).replace(/\/$/, "");
 
 // ---- Low-level fetch helper ----
 
