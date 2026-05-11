@@ -1,11 +1,13 @@
 // Applications API routes (join-request submission + admin review).
 
 import { Hono } from "hono";
-import type { Env, Variables, ApplicationRow } from "@/types";
+import type { D1Database } from "@cloudflare/workers-types";
+import type { Env, Variables, ApplicationRow, UserRow } from "@/types";
 import { requireAuth, requireTier } from "@/middleware/auth";
+import { buildOtpAuthUrl, generateTotpSecret } from "@/auth/totp";
 import { newId } from "@/lib/utils";
 import {
-  sendApplicationApprovedEmail,
+  sendTotpSetupEmail,
   sendApplicationRejectedEmail,
 } from "@/email/sender";
 
@@ -109,20 +111,62 @@ applications.patch("/:id", requireAuth, requireTier("ADMIN"), async (c) => {
     .run();
 
   if (body.decision === "APPROVED") {
-    // Promote any existing user with this email
-    await c.env.DB.prepare(
-      `UPDATE users SET tier = 'VERIFIED', application_id = ?
-       WHERE email = ? AND tier IN ('GUEST','UNVERIFIED')`,
-    )
-      .bind(id, app.email)
-      .run();
+    let user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
+      .bind(app.email)
+      .first<UserRow>();
+
+    if (!user) {
+      const baseHandle = app.email.split("@")[0]!.replace(/[^a-z0-9]/g, "_");
+      const handle = await ensureUniqueHandle(c.env.DB, baseHandle, "");
+      const userId = newId();
+      await c.env.DB.prepare(
+        `INSERT INTO users (id, email, handle, display_name, tier, status, email_verified_at, application_id)
+         VALUES (?, ?, ?, ?, 'VERIFIED', 'ACTIVE', datetime('now'), ?)`,
+      )
+        .bind(userId, app.email, handle, handle, id)
+        .run();
+      user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+        .bind(userId)
+        .first<UserRow>();
+    } else {
+      await c.env.DB.prepare(
+        `UPDATE users
+         SET tier = CASE WHEN tier IN ('GUEST','UNVERIFIED') THEN 'VERIFIED' ELSE tier END,
+             application_id = COALESCE(application_id, ?),
+             updated_at = datetime('now')
+         WHERE id = ?`,
+      )
+        .bind(id, user.id)
+        .run();
+      user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+        .bind(user.id)
+        .first<UserRow>();
+    }
+
+    if (!user) return c.json({ error: "用户创建失败" }, 500);
+
+    const secret = generateTotpSecret();
+    const otpauthUrl = buildOtpAuthUrl(c.env.APP_NAME, app.email, secret);
+    if (user.totp_enabled && user.totp_secret) {
+      await c.env.DB.prepare(
+        "UPDATE users SET totp_pending_secret = ?, updated_at = datetime('now') WHERE id = ?",
+      )
+        .bind(secret, user.id)
+        .run();
+    } else {
+      await c.env.DB.prepare(
+        "UPDATE users SET totp_secret = ?, totp_pending_secret = NULL, totp_enabled = 1, email_verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+      )
+        .bind(secret, user.id)
+        .run();
+    }
 
     c.executionCtx.waitUntil(
-      sendApplicationApprovedEmail(
+      sendTotpSetupEmail(
         { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-        { to: app.email },
+        { to: app.email, secret, otpauthUrl },
       ).catch((err) => {
-        console.error("Failed to send application approved email:", err);
+        console.error("Failed to send TOTP setup email on application approval:", err);
       }),
     );
   } else {
@@ -151,5 +195,24 @@ applications.patch("/:id", requireAuth, requireTier("ADMIN"), async (c) => {
 
   return c.json({ ok: true });
 });
+
+async function ensureUniqueHandle(
+  db: D1Database,
+  base: string,
+  selfId: string,
+): Promise<string> {
+  let candidate = base || "user";
+  let n = 0;
+  for (let i = 0; i < 20; i++) {
+    const row = await db
+      .prepare("SELECT id FROM users WHERE handle = ?")
+      .bind(candidate)
+      .first<{ id: string }>();
+    if (!row || row.id === selfId) return candidate;
+    n += 1;
+    candidate = `${base}_${n}`;
+  }
+  return `${base}_${Date.now()}`;
+}
 
 export default applications;
