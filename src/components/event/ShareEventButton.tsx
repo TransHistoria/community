@@ -10,13 +10,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Visibility } from "@/lib/enums";
-import { ShareToUser } from "./ShareToUser";
 import { ShareExternal } from "./ShareExternal";
 
 export function ShareEventButton({
-  eventId,
   slug,
   title,
   visibility,
@@ -39,26 +36,9 @@ export function ShareEventButton({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>分享活动</DialogTitle>
-          <DialogDescription>
-            把「{title}」推荐给社群成员，或通过链接分享到站外。
-          </DialogDescription>
+          <DialogDescription>把「{title}」通过链接分享到站外。</DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="internal" className="space-y-4">
-          <TabsList className="w-full">
-            <TabsTrigger value="internal" className="flex-1">
-              站内推荐
-            </TabsTrigger>
-            <TabsTrigger value="external" className="flex-1">
-              站外分享
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="internal">
-            <ShareToUser eventId={eventId} onDone={() => setOpen(false)} />
-          </TabsContent>
-          <TabsContent value="external">
-            <ShareExternal slug={slug} title={title} visibility={visibility} />
-          </TabsContent>
-        </Tabs>
+        <ShareExternal slug={slug} title={title} visibility={visibility} />
       </DialogContent>
     </Dialog>
   );

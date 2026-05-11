@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/toast-context";
 import { profileSchema } from "@/lib/validators/user";
-import { saveProfile, uploadAvatar } from "./actions";
 
 type Initial = {
   handle: string;
@@ -45,28 +45,31 @@ export function ProfileForm({ initial }: { initial: Initial }) {
       return;
     }
     setPending(true);
-    const res = await saveProfile(parsed.data);
-    setPending(false);
-    if (res.ok) {
+    try {
+      await api.users.updateMe(parsed.data);
       toast({ title: "已保存", variant: "success" });
       router.refresh();
-    } else {
-      toast({ title: "保存失败", description: res.error, variant: "danger" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "保存失败";
+      toast({ title: "保存失败", description: msg, variant: "danger" });
+    } finally {
+      setPending(false);
     }
   }
 
   async function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await uploadAvatar(fd);
-    if (res.ok) {
-      setAvatarUrl(res.url);
+    try {
+      const res = await api.files.upload(file, "avatar");
+      const absolute = api.files.url(res.url);
+      await api.users.updateMe({ avatarUrl: absolute });
+      setAvatarUrl(absolute);
       toast({ title: "头像已更新", variant: "success" });
       router.refresh();
-    } else {
-      toast({ title: "上传失败", description: res.error, variant: "danger" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "上传失败";
+      toast({ title: "上传失败", description: msg, variant: "danger" });
     }
   }
 
@@ -76,9 +79,7 @@ export function ProfileForm({ initial }: { initial: Initial }) {
         <div className="flex items-center gap-4">
           <Avatar className="h-20 w-20 ring-2 ring-border">
             {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-            <AvatarFallback className="text-xl">
-              {form.displayName.charAt(0)}
-            </AvatarFallback>
+            <AvatarFallback className="text-xl">{form.displayName.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="space-y-1">
             <Label htmlFor="avatar">头像</Label>
@@ -89,9 +90,7 @@ export function ProfileForm({ initial }: { initial: Initial }) {
               onChange={onAvatarChange}
               className="block text-sm"
             />
-            <p className="text-xs text-ink-subtle">
-              JPG / PNG，小于 4MB。上传后会自动裁剪并去除元数据。
-            </p>
+            <p className="text-xs text-ink-subtle">JPG / PNG，小于 4MB。</p>
           </div>
         </div>
 

@@ -1,14 +1,12 @@
 "use client";
 import * as React from "react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { unblockUser } from "@/app/(app)/u/[handle]/actions";
 import { useToast } from "@/components/ui/toast-context";
-import { useRouter } from "next/navigation";
 
-export function UnblockButton({ targetUserId }: { targetUserId: string }) {
+export function UnblockButton({ targetHandle, onUnblocked }: { targetHandle: string; onUnblocked?: () => void }) {
   const [pending, setPending] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
   return (
     <Button
       variant="outline"
@@ -16,10 +14,15 @@ export function UnblockButton({ targetUserId }: { targetUserId: string }) {
       disabled={pending}
       onClick={async () => {
         setPending(true);
-        await unblockUser(targetUserId);
-        setPending(false);
-        toast({ title: "已解除拉黑", variant: "success" });
-        router.refresh();
+        try {
+          await api.users.unblock(targetHandle);
+          toast({ title: "已解除拉黑", variant: "success" });
+          onUnblocked?.();
+        } catch {
+          toast({ title: "操作失败", variant: "danger" });
+        } finally {
+          setPending(false);
+        }
       }}
     >
       解除

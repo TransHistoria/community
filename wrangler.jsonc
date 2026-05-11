@@ -1,0 +1,56 @@
+{
+  // Cloudflare Workers configuration for TransCommunity backend
+  "name": "transcommunity",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Use the worker-specific tsconfig so path aliases (@/*) resolve correctly
+  "tsconfig": "worker/tsconfig.json",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "transcommunity",
+      "database_id": "08c06ba3-038b-4aa4-91ff-88ea7d0954bb",
+      "migrations_dir": "worker/migrations"
+    }
+  ],
+
+  // Workers Email — requires an Email Routing rule in the Cloudflare dashboard
+  // pointing a "from" address to this Worker's address.
+  "send_email": [
+    {
+      "name": "SEND_EMAIL"
+    }
+  ],
+
+  // R2 bucket for file uploads (avatars, event covers)
+  // Create with: wrangler r2 bucket create transcommunity
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "transcommunity"
+    }
+  ],
+
+  "vars": {
+    // Override these in the Cloudflare dashboard as secrets:
+    //   wrangler secret put JWT_SECRET
+    //   wrangler secret put EMAIL_FROM
+    //   wrangler secret put APP_NAME
+    //   wrangler secret put ADMIN_EMAILS
+    //   wrangler secret put FRONTEND_URL
+    "APP_NAME": "跨性别社群",
+    "APP_LOCALE": "zh-CN",
+    "EMAIL_FROM": "Trans Community <noreply@transhistoria.org>",
+    "FRONTEND_URL": "https://community.transhistoria.org",
+    "ADMIN_EMAILS": ""
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  }
+}

@@ -1,19 +1,12 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { decideRegistration } from "@/app/(app)/events/actions";
+import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/toast-context";
-import { useRouter } from "next/navigation";
-import type { RegStatus } from "@/lib/enums";
 
-type DecisionStatus =
-  | "CONFIRMED"
-  | "WAITLIST"
-  | "DECLINED"
-  | "CHECKED_IN"
-  | "NO_SHOW";
+type DecisionStatus = "CONFIRMED" | "WAITLIST" | "DECLINED" | "CHECKED_IN" | "NO_SHOW";
 
-const ACTIONS: Record<RegStatus, { label: string; next: DecisionStatus }[]> = {
+const ACTIONS: Record<string, { label: string; next: DecisionStatus }[]> = {
   PENDING: [
     { label: "通过", next: "CONFIRMED" },
     { label: "候补", next: "WAITLIST" },
@@ -37,15 +30,16 @@ const ACTIONS: Record<RegStatus, { label: string; next: DecisionStatus }[]> = {
 export function RegistrationActions({
   registrationId,
   currentStatus,
+  onUpdated,
 }: {
   registrationId: string;
-  currentStatus: RegStatus;
+  currentStatus: string;
+  onUpdated?: () => void;
 }) {
   const [pending, setPending] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
 
-  const actions = ACTIONS[currentStatus];
+  const actions = ACTIONS[currentStatus] ?? [];
   if (actions.length === 0) return null;
 
   return (
@@ -58,13 +52,13 @@ export function RegistrationActions({
           disabled={pending}
           onClick={async () => {
             setPending(true);
-            const res = await decideRegistration(registrationId, a.next);
+            const res = await api.events.decideRegistration(registrationId, a.next);
             setPending(false);
             if (res.ok) {
               toast({ title: "已更新", variant: "success" });
-              router.refresh();
+              onUpdated?.();
             } else {
-              toast({ title: "失败", description: res.error, variant: "danger" });
+              toast({ title: "失败", variant: "danger" });
             }
           }}
         >

@@ -1,11 +1,12 @@
-import { requireTier } from "@/lib/session";
+"use client";
+import { useAuth } from "@/contexts/AuthContext";
+import { canCreateEvent } from "@/lib/access";
 import { PageHeader } from "@/components/ui/page-header";
 import { EventForm } from "@/components/event/EventForm";
 
-export const metadata = { title: "创建活动" };
-
-export default async function NewEventPage() {
-  await requireTier("VERIFIED");
+export default function NewEventPage() {
+  const { user } = useAuth();
+  if (!canCreateEvent(user)) return null;
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader

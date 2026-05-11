@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/toast-context";
-import { resolveReport } from "@/app/admin/actions";
-import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 const HIDE_LABEL: Record<string, string> = {
   USER: "封禁该用户",
@@ -16,35 +15,32 @@ const HIDE_LABEL: Record<string, string> = {
 export function ReportDecisionForm({
   reportId,
   targetType,
+  onDecided,
 }: {
   reportId: string;
   targetType: "USER" | "EVENT" | "COMMENT";
+  onDecided?: () => void;
 }) {
   const [note, setNote] = React.useState("");
   const [hide, setHide] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
 
   async function decide(decision: "RESOLVED" | "DISMISSED") {
     setPending(true);
-    const res = await resolveReport(reportId, decision, note || undefined, hide);
+    const res = await api.admin.resolveReport(reportId, decision, note || undefined, hide);
     setPending(false);
     if (res.ok) {
       toast({ title: "已处理", variant: "success" });
-      router.refresh();
+      onDecided?.();
     } else {
-      toast({ title: "失败", description: res.error, variant: "danger" });
+      toast({ title: "失败", variant: "danger" });
     }
   }
 
   return (
     <div className="space-y-2">
-      <Input
-        placeholder="处理备注"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
+      <Input placeholder="处理备注" value={note} onChange={(e) => setNote(e.target.value)} />
       <label className="inline-flex items-center gap-2 text-sm">
         <Checkbox checked={hide} onCheckedChange={(v) => setHide(v === true)} />
         <span>同时{HIDE_LABEL[targetType]}</span>

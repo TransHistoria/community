@@ -15,6 +15,15 @@ export const signInSchema = z.object({
   email: emailSchema,
 });
 
+export const totpCodeSchema = z
+  .string()
+  .regex(/^\d{6}$/, "请输入 6 位验证码");
+
+export const signInTotpSchema = z.object({
+  email: emailSchema,
+  code: totpCodeSchema,
+});
+
 export const signUpInviteSchema = z.object({
   email: emailSchema,
   code: inviteCodeSchema,

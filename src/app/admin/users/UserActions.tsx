@@ -1,55 +1,43 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast-context";
-import { useRouter } from "next/navigation";
-import { reactivateUser, setUserTier, suspendUser } from "@/app/admin/actions";
-import type { UserTier, UserStatus } from "@/lib/enums";
+import { api } from "@/lib/api";
 
-const TIER_OPTIONS: UserTier[] = [
-  "UNVERIFIED",
-  "VERIFIED",
-  "TRUSTED",
-  "ADMIN",
-];
+const TIER_OPTIONS = ["UNVERIFIED", "VERIFIED", "TRUSTED", "ADMIN"];
 
 export function UserActions({
   userId,
   currentTier,
   status,
+  onUpdated,
 }: {
   userId: string;
-  currentTier: UserTier;
-  status: UserStatus;
+  currentTier: string;
+  status: string;
+  onUpdated?: () => void;
 }) {
-  const [tier, setTier] = React.useState<UserTier>(currentTier);
+  const [tier, setTier] = React.useState(currentTier);
   const [pending, setPending] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
 
   async function applyTier() {
     if (tier === currentTier) return;
     setPending(true);
-    const res = await setUserTier(userId, tier);
+    const res = await api.admin.setUserTier(userId, tier);
     setPending(false);
     if (res.ok) {
       toast({ title: "已更新", variant: "success" });
-      router.refresh();
+      onUpdated?.();
     } else {
-      toast({ title: "失败", description: res.error, variant: "danger" });
+      toast({ title: "失败", variant: "danger" });
     }
   }
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <Select value={tier} onValueChange={(v) => setTier(v as UserTier)}>
+      <Select value={tier} onValueChange={setTier}>
         <SelectTrigger className="w-32">
           <SelectValue />
         </SelectTrigger>
@@ -72,9 +60,9 @@ export function UserActions({
           onClick={async () => {
             if (!window.confirm("确认封禁该用户？")) return;
             setPending(true);
-            await suspendUser(userId);
+            await api.admin.setUserStatus(userId, "SUSPENDED");
             setPending(false);
-            router.refresh();
+            onUpdated?.();
           }}
         >
           封禁
@@ -86,9 +74,9 @@ export function UserActions({
           disabled={pending}
           onClick={async () => {
             setPending(true);
-            await reactivateUser(userId);
+            await api.admin.setUserStatus(userId, "ACTIVE");
             setPending(false);
-            router.refresh();
+            onUpdated?.();
           }}
         >
           恢复

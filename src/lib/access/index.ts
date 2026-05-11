@@ -1,26 +1,23 @@
-// Centralised access-control predicates.
-// All visibility/tier rules live here; pages and API routes call into these.
-//
-// Inputs are typed as `string` (rather than narrowed enum types) so they
-// accept Prisma fields directly — SQLite has no DB-level enum, fields come back
-// as plain strings. Validation is enforced in zod schemas at API boundaries.
-
-import type { ContactMethod, Event, Registration, User } from "@prisma/client";
+// Centralised access-control predicates (client-safe, no Prisma imports).
 import { TIER_RANK } from "@/lib/session";
 import type { UserTier } from "@/lib/enums";
 
-type Viewer =
-  | null
-  | {
-      id: string;
-      tier: string;
-    };
+type Viewer = null | { id: string; tier: string };
+
+type ContactMethodLike = { visibility: string };
+type EventLike = {
+  visibility: string;
+  status: string;
+  organizer_id?: string;
+  organizerId?: string;
+};
+type RegistrationLike = { status: string } | null;
 
 const VIS_REQUIRED_TIER: Record<string, UserTier> = {
   PUBLIC: "GUEST",
   VERIFIED: "VERIFIED",
   TRUSTED: "TRUSTED",
-  HIDDEN_REQUEST: "ADMIN", // base tier alone never satisfies; needs explicit grant
+  HIDDEN_REQUEST: "ADMIN",
 };
 
 function rank(tier: string): number {
@@ -38,38 +35,34 @@ export function meetsVisibility(viewer: Viewer, visibility: string): boolean {
 
 // ---------- Events ----------
 
-export function canViewEvent(
-  viewer: Viewer,
-  event: Pick<Event, "visibility" | "status" | "organizerId">,
-): boolean {
+export function canViewEvent(viewer: Viewer, event: EventLike): boolean {
+  const orgId = event.organizer_id ?? event.organizerId;
   if (event.status === "DRAFT") {
-    return !!viewer && viewer.id === event.organizerId;
+    return !!viewer && viewer.id === orgId;
   }
-  if (viewer && viewer.id === event.organizerId) return true;
+  if (viewer && viewer.id === orgId) return true;
   return meetsVisibility(viewer, event.visibility);
 }
 
-/**
- * The "summary" view is what's safe to show on the index/detail page before
- * registration approval. It excludes preciseAddr and onlineUrl.
- */
 export function canViewEventDetails(
   viewer: Viewer,
-  event: Pick<Event, "organizerId">,
-  registration: Pick<Registration, "status"> | null,
+  event: { organizer_id?: string; organizerId?: string },
+  registration: RegistrationLike,
 ): boolean {
   if (!viewer) return false;
-  if (viewer.id === event.organizerId) return true;
+  const orgId = event.organizer_id ?? event.organizerId;
+  if (viewer.id === orgId) return true;
   if (viewer.tier === "ADMIN") return true;
   return registration?.status === "CONFIRMED" || registration?.status === "CHECKED_IN";
 }
 
 export function canEditEvent(
   viewer: Viewer,
-  event: Pick<Event, "organizerId">,
+  event: { organizer_id?: string; organizerId?: string },
 ): boolean {
   if (!viewer) return false;
-  return viewer.id === event.organizerId || viewer.tier === "ADMIN";
+  const orgId = event.organizer_id ?? event.organizerId;
+  return viewer.id === orgId || viewer.tier === "ADMIN";
 }
 
 export function canCreateEvent(viewer: Viewer): boolean {
@@ -79,10 +72,14 @@ export function canCreateEvent(viewer: Viewer): boolean {
 
 export function canRegister(
   viewer: Viewer,
-  event: Pick<
-    Event,
-    "visibility" | "status" | "registrationOpensAt" | "registrationClosesAt"
-  >,
+  event: {
+    visibility: string;
+    status: string;
+    registration_opens_at?: string | Date | null;
+    registration_closes_at?: string | Date | null;
+    registrationOpensAt?: Date | null;
+    registrationClosesAt?: Date | null;
+  },
 ): { ok: true } | { ok: false; reason: string } {
   if (!viewer) return { ok: false, reason: "请先登录" };
   if (rank(viewer.tier) < rank("VERIFIED")) {
@@ -93,10 +90,10 @@ export function canRegister(
   if (!meetsVisibility(viewer, event.visibility))
     return { ok: false, reason: "无权访问此活动" };
   const now = new Date();
-  if (event.registrationOpensAt && event.registrationOpensAt > now)
-    return { ok: false, reason: "报名尚未开始" };
-  if (event.registrationClosesAt && event.registrationClosesAt < now)
-    return { ok: false, reason: "报名已截止" };
+  const opensAt = event.registration_opens_at ?? event.registrationOpensAt;
+  const closesAt = event.registration_closes_at ?? event.registrationClosesAt;
+  if (opensAt && new Date(opensAt) > now) return { ok: false, reason: "报名尚未开始" };
+  if (closesAt && new Date(closesAt) < now) return { ok: false, reason: "报名已截止" };
   return { ok: true };
 }
 
@@ -105,7 +102,7 @@ export function canRegister(
 export function canViewContact(
   viewer: Viewer,
   ownerId: string,
-  contact: Pick<ContactMethod, "visibility">,
+  contact: ContactMethodLike,
   approvedRequest: boolean,
 ): boolean {
   if (viewer?.id === ownerId) return true;
@@ -118,7 +115,7 @@ export function canViewContact(
 
 export function canViewProfile(
   viewer: Viewer,
-  target: Pick<User, "id" | "status">,
+  target: { id: string; status: string },
 ): boolean {
   if (target.status === "DELETED") return false;
   if (target.status === "SUSPENDED") return viewer?.tier === "ADMIN";

@@ -1,11 +1,13 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { TopBar } from "./TopBar";
 import { MobileNav } from "./MobileNav";
 import { Footer } from "./Footer";
-import { getCurrentUser } from "@/lib/session";
+import { useCurrentUser } from "@/contexts/AuthContext";
 
-export async function AppShell({ children }: { children: ReactNode }) {
-  const user = await getCurrentUser();
+export function AppShell({ children }: { children: ReactNode }) {
+  const user = useCurrentUser();
   return (
     <div className="flex min-h-screen flex-col">
       <TopBar />

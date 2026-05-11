@@ -1,16 +1,18 @@
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+"use client";
+import * as React from "react";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { ContactsManager } from "./ContactsManager";
 
-export const metadata = { title: "联系方式" };
+export default function MeContactsPage() {
+  const [contacts, setContacts] = React.useState<unknown[]>([]);
 
-export default async function MeContactsPage() {
-  const viewer = await requireUser();
-  const contacts = await db.contactMethod.findMany({
-    where: { userId: viewer.id },
-    orderBy: { order: "asc" },
-  });
+  const load = React.useCallback(() => {
+    api.users.myContacts().then((res: { contacts: unknown[] }) => setContacts(res.contacts));
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader
@@ -18,7 +20,7 @@ export default async function MeContactsPage() {
         title="联系方式"
         description="管理你愿意展示给他人的联系方式，每一项都可以独立设置可见范围。"
       />
-      <ContactsManager initial={contacts} />
+      <ContactsManager contacts={contacts} onRefresh={load} />
     </div>
   );
 }

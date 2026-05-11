@@ -1,0 +1,79 @@
+name: API Integration Tests
+
+on:
+  push:
+    paths:
+      - "worker/**"
+      - ".github/workflows/api-test.yml"
+  pull_request:
+    paths:
+      - "worker/**"
+      - ".github/workflows/api-test.yml"
+  workflow_dispatch:
+
+jobs:
+  api-test:
+    name: wrangler dev + endpoint tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Clean local wrangler state
+        run: rm -rf worker/.wrangler worker/.dev.vars
+
+      # ── Local secrets for wrangler dev ─────────────────────────────────────
+      # JWT_SECRET must be set so signJwt / verifyJwt work locally.
+      # ADMIN_EMAILS lists admin@ci.test so the pre-seeded admin user is recognised.
+      - name: Write worker/.dev.vars
+        working-directory: worker
+        run: |
+          cat > .dev.vars <<'EOF'
+          JWT_SECRET=ci-test-secret-do-not-use-in-production
+          ADMIN_EMAILS=admin@ci.test
+          CREATE_ADMIN=ci-create-admin-secret
+          EOF
+
+      # ── Apply schema ────────────────────────────────────────────────────────
+      - name: Apply D1 migrations (local)
+        working-directory: worker
+        run: ../node_modules/.bin/wrangler d1 migrations apply transcommunity --local
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
+      # ── Seed test fixture data ──────────────────────────────────────────────
+      - name: Seed test data
+        working-directory: worker
+        run: ../node_modules/.bin/wrangler d1 execute transcommunity --local --file test/seed.sql
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
+      # ── Start wrangler dev in background ───────────────────────────────────
+      - name: Start wrangler dev
+        working-directory: worker
+        run: ../node_modules/.bin/wrangler dev --port 8787 &
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
+      # ── Run all endpoint tests ──────────────────────────────────────────────
+      # The test script polls /api/health for up to 30 s before running tests.
+      - name: Run API tests
+        working-directory: worker
+        run: node test/api.test.mjs
+        env:
+          API_BASE: "http://localhost:8787"

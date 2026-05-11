@@ -1,12 +1,12 @@
+"use client";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getCurrentUser } from "@/lib/session";
-import { env } from "@/lib/env";
+import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Users, Lock, Sparkles, type LucideIcon } from "lucide-react";
 
-export default async function HomePage() {
-  const user = await getCurrentUser();
+export default function HomePage() {
+  const { user } = useAuth();
 
   return (
     <div className="space-y-24 py-6 md:py-12">
@@ -25,7 +25,7 @@ export default async function HomePage() {
             。
           </h1>
           <p className="max-w-xl text-lg text-ink-muted leading-relaxed">
-            {env.app.name} 是一个面向跨性别社群的私域活动平台。
+            跨性别社群是一个面向跨性别社群的私域活动平台。
             邀请制注册、可控的可见性、温和的对话边界。
             没有私信、没有公开搜索、没有多余的元素干扰你与社群之间的连接。
           </p>

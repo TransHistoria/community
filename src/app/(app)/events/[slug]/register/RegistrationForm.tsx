@@ -2,19 +2,13 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast-context";
-import { register } from "@/app/(app)/events/actions";
+import { api } from "@/lib/api";
 
 type Question = {
   id: string;
@@ -47,7 +41,7 @@ export function RegistrationForm({
       }
     }
     setPending(true);
-    const res = await register({ eventId, answers });
+    const res = await api.events.register(eventId, answers);
     setPending(false);
     if (res.ok) {
       toast({
@@ -60,9 +54,8 @@ export function RegistrationForm({
         variant: "success",
       });
       router.push(`/events/${slug}`);
-      router.refresh();
     } else {
-      toast({ title: "报名失败", description: res.error, variant: "danger" });
+      toast({ title: "报名失败", variant: "danger" });
     }
   }
 
@@ -71,9 +64,7 @@ export function RegistrationForm({
       <CardContent className="pt-6">
         <form onSubmit={onSubmit} className="space-y-5">
           {questions.length === 0 ? (
-            <p className="text-sm text-ink-muted">
-              组织者没有设置自定义问题，直接提交即可。
-            </p>
+            <p className="text-sm text-ink-muted">组织者没有设置自定义问题，直接提交即可。</p>
           ) : (
             questions.map((q) => (
               <div key={q.id} className="space-y-2">
@@ -84,24 +75,18 @@ export function RegistrationForm({
                 {q.type === "text" ? (
                   <Input
                     value={answers[q.id] ?? ""}
-                    onChange={(e) =>
-                      setAnswers({ ...answers, [q.id]: e.target.value })
-                    }
+                    onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
                   />
                 ) : q.type === "long-text" ? (
                   <Textarea
                     rows={3}
                     value={answers[q.id] ?? ""}
-                    onChange={(e) =>
-                      setAnswers({ ...answers, [q.id]: e.target.value })
-                    }
+                    onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
                   />
                 ) : (
                   <Select
                     value={answers[q.id] ?? ""}
-                    onValueChange={(v) =>
-                      setAnswers({ ...answers, [q.id]: v })
-                    }
+                    onValueChange={(v) => setAnswers({ ...answers, [q.id]: v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="请选择" />

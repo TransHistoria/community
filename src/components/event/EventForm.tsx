@@ -23,7 +23,7 @@ import {
   FORMAT_LABEL,
 } from "./event-config";
 import { eventInputSchema, type EventInput } from "@/lib/validators/event";
-import { createEvent, updateEvent } from "@/app/(app)/events/actions";
+import { api } from "@/lib/api";
 import { Plus, Trash2 } from "lucide-react";
 
 type Question = {
@@ -164,15 +164,15 @@ export function EventForm({
     setPending(true);
     const res =
       mode === "create"
-        ? await createEvent(parsed.data)
-        : await updateEvent(eventId!, parsed.data);
+        ? await api.events.create(parsed.data)
+        : await api.events.update(eventId!, parsed.data);
     setPending(false);
     if (res.ok) {
       toast({ title: mode === "create" ? "已发布" : "已保存", variant: "success" });
       const slug = (res as { slug?: string }).slug;
       router.push(slug ? `/events/${slug}` : `/events`);
     } else {
-      toast({ title: "失败", description: res.error, variant: "danger" });
+      toast({ title: "失败", variant: "danger" });
     }
   }
 

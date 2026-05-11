@@ -1,10 +1,10 @@
 import Link from "next/link";
-import type { Event } from "@prisma/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CATEGORY_LABEL, FORMAT_LABEL } from "./event-config";
 import { formatTimeRange, relativeTime } from "@/lib/utils";
 import { MapPin, Video, Calendar } from "lucide-react";
+import type { Event } from "@/lib/api";
 
 type CardEvent = Pick<
   Event,
@@ -13,16 +13,19 @@ type CardEvent = Pick<
   | "title"
   | "category"
   | "format"
-  | "startAt"
-  | "endAt"
+  | "start_at"
+  | "end_at"
   | "city"
   | "capacity"
   | "visibility"
   | "status"
-> & { _count?: { registrations: number } };
+  | "reg_count"
+>;
 
 export function EventCard({ event }: { event: CardEvent }) {
-  const past = event.endAt < new Date();
+  const startAt = new Date(event.start_at);
+  const endAt = new Date(event.end_at);
+  const past = endAt < new Date();
   const cancelled = event.status === "CANCELLED";
 
   return (
@@ -40,7 +43,7 @@ export function EventCard({ event }: { event: CardEvent }) {
           </h3>
           <div className="flex items-center gap-1.5 text-sm text-ink-muted">
             <Calendar className="h-3.5 w-3.5" strokeWidth={1.8} />
-            <span>{formatTimeRange(event.startAt, event.endAt)}</span>
+            <span>{formatTimeRange(startAt, endAt)}</span>
           </div>
           {event.format !== "ONLINE" && event.city ? (
             <div className="flex items-center gap-1.5 text-sm text-ink-muted">
@@ -58,11 +61,11 @@ export function EventCard({ event }: { event: CardEvent }) {
             <span>
               已报名{" "}
               <strong className="text-ink">
-                {event._count?.registrations ?? 0}
+                {event.reg_count ?? 0}
               </strong>
               {event.capacity ? ` / ${event.capacity}` : null}
             </span>
-            <span>{relativeTime(event.startAt)}</span>
+            <span>{relativeTime(startAt)}</span>
           </div>
         </CardContent>
       </Card>

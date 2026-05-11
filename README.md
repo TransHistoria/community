@@ -7,8 +7,8 @@
 ## 技术栈
 
 - **Next.js 14 (App Router)** + TypeScript
-- **PostgreSQL + Prisma** ORM
-- **Auth.js v5** 邮箱魔法链接登录
+- **Cloudflare Workers (Hono) + D1**
+- **Wrangler** 本地运行与部署（`wrangler dev` / `wrangler deploy`）
 - **Tailwind CSS** + 自研 UI 组件（基于 Radix Primitives）
 - **React Hook Form + Zod** 表单与校验
 - **Resend / SMTP** 邮件
@@ -16,23 +16,19 @@
 
 ## 本地开发
 
-1. **依赖**：Node.js 20+、PostgreSQL 14+、pnpm（或 npm / yarn）
-2. **安装**
+1. **依赖**：Node.js 20+、pnpm（或 npm / yarn）
+2. **安装前端依赖**
    ```bash
    pnpm install
-   cp .env.example .env.local
-   # 修改 .env.local 中的 DATABASE_URL 等
    ```
-3. **数据库**
+3. **安装并启动后端（Wrangler）**
    ```bash
-   pnpm db:migrate      # 应用迁移
-   pnpm db:seed         # 写入分类等基础数据
+   cd worker
+   pnpm install
+   pnpm run setup
+   pnpm run dev
    ```
-4. **创建首位管理员**
-   ```bash
-   pnpm create-admin admin@example.com
-   ```
-5. **启动**
+4. **启动前端**
    ```bash
    pnpm dev
    # http://localhost:3000
@@ -43,22 +39,18 @@
 | 命令 | 说明 |
 |---|---|
 | `pnpm dev` | 启动开发服务器 |
-| `pnpm db:migrate` | 应用迁移（开发） |
-| `pnpm db:reset` | 重置数据库（销毁数据） |
-| `pnpm db:studio` | Prisma Studio 数据浏览 |
-| `pnpm create-admin <email>` | 创建/提升管理员 |
-| `pnpm issue-invite <email>` | 命令行签发邀请码 |
+| `cd worker && pnpm run dev` | 本地运行 Worker 后端（Wrangler） |
+| `cd worker && pnpm run setup` | 部署前执行 D1 migration/setup |
+| `cd worker && pnpm run deploy` | 部署到 Cloudflare（包含 setup） |
 | `pnpm typecheck` | TS 类型检查 |
 | `pnpm test` | 单元测试 |
 | `pnpm test:e2e` | Playwright 端到端 |
 
 ## 环境变量
 
-见 `.env.example` 中的注释。最少需要：
-
-- `DATABASE_URL`
-- `AUTH_SECRET`
-- 邮件渠道二选一：`RESEND_API_KEY` 或 `SMTP_*`（开发期都不填会输出到控制台）
+后端环境变量统一通过 `worker/wrangler.jsonc` 的 `vars` 与 Wrangler secrets 配置，不再使用 `.env.example`。
+前端默认 API 地址为 `https://transcommunity.cyanmint.workers.dev`（可通过 `NEXT_PUBLIC_API_URL` 覆盖）。
+备用地址通过 `NEXT_PUBLIC_API_FALLBACK_URL` 配置，当主地址无法访问时自动切换。
 
 ## 目录结构
 
@@ -92,6 +84,10 @@ prisma/
 scripts/
 ├─ create-admin.ts
 └─ issue-invite.ts
+worker/
+├─ wrangler.jsonc
+├─ migrations/
+└─ src/
 ```
 
 ## 用户分级

@@ -1,21 +1,28 @@
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+"use client";
+import * as React from "react";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { UnblockButton } from "./UnblockButton";
 
-export const metadata = { title: "拉黑列表" };
+type BlockEntry = {
+  id: string;
+  blocked_id?: string;
+  blocked_handle?: string;
+  blocked_name?: string;
+  handle?: string;
+  displayName?: string;
+};
 
-export default async function MeBlocksPage() {
-  const viewer = await requireUser();
-  const blocks = await db.block.findMany({
-    where: { blockerId: viewer.id },
-    include: {
-      blocked: { select: { handle: true, displayName: true, avatarUrl: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+export default function MeBlocksPage() {
+  const [blocks, setBlocks] = React.useState<BlockEntry[]>([]);
+
+  const load = React.useCallback(() => {
+    api.users.myBlocks().then((res: { blocks: unknown[] }) => setBlocks(res.blocks as BlockEntry[]));
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -28,17 +35,21 @@ export default async function MeBlocksPage() {
         <EmptyState title="没有拉黑任何人" />
       ) : (
         <div className="space-y-2">
-          {blocks.map((b) => (
-            <Card key={b.id}>
-              <CardContent className="py-3 flex items-center justify-between gap-3">
-                <div className="text-sm">
-                  <span className="font-medium">{b.blocked.displayName}</span>
-                  <span className="text-ink-subtle"> @{b.blocked.handle}</span>
-                </div>
-                <UnblockButton targetUserId={b.blockedId} />
-              </CardContent>
-            </Card>
-          ))}
+          {blocks.map((b) => {
+            const handle = b.blocked_handle ?? b.handle ?? "";
+            const name = b.blocked_name ?? b.displayName ?? handle;
+            return (
+              <Card key={b.id}>
+                <CardContent className="py-3 flex items-center justify-between gap-3">
+                  <div className="text-sm">
+                    <span className="font-medium">{name}</span>
+                    <span className="text-ink-subtle"> @{handle}</span>
+                  </div>
+                  <UnblockButton targetHandle={handle} onUnblocked={load} />
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -10,10 +10,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast-context";
-import { requestContact } from "./actions";
+import { api } from "@/lib/api";
 
 export function ContactRequestButton({
   targetHandle,
@@ -35,18 +35,17 @@ export function ContactRequestButton({
       return;
     }
     setPending(true);
-    const res = await requestContact({ targetHandle, contactId, reason: reason.trim() });
+    const res = await api.users.sendContactRequest(targetHandle, {
+      contactId,
+      reason: reason.trim(),
+    });
     setPending(false);
     if (res.ok) {
-      toast({
-        title: "申请已发送",
-        description: "对方收到通知后会决定是否同意。",
-        variant: "success",
-      });
+      toast({ title: "申请已发送", description: "对方收到通知后会决定是否同意。", variant: "success" });
       setOpen(false);
       setReason("");
     } else {
-      toast({ title: "申请失败", description: res.error, variant: "danger" });
+      toast({ title: "申请失败", variant: "danger" });
     }
   }
 
@@ -61,8 +60,7 @@ export function ContactRequestButton({
         <DialogHeader>
           <DialogTitle>申请查看「{contactLabel}」</DialogTitle>
           <DialogDescription>
-            请简短说明你为什么想查看 ta 的这项联系方式。
-            对方会收到你的理由，并自主决定是否同意。
+            请简短说明你为什么想查看 ta 的这项联系方式。对方会收到你的理由，并自主决定是否同意。
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
