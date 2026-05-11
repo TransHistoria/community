@@ -60,11 +60,15 @@ export function CreateAdminForm() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="create-admin-secret">初始化密钥</Label>
+        <p id="create-admin-secret-help" className="text-xs text-ink-subtle">
+          请填写部署环境中配置的 CREATE_ADMIN 密钥。
+        </p>
         <Input
           id="create-admin-secret"
           type="password"
           autoComplete="off"
           placeholder="请输入初始化密钥"
+          aria-describedby="create-admin-secret-help"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
           disabled={pending}
