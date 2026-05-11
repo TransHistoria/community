@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
 import { CommentSection } from "./CommentSection";
 import { CancelMyRegistrationButton } from "./CancelMyRegistrationButton";
 import { CATEGORY_LABEL, EVENT_VISIBILITY_LABEL, FORMAT_LABEL } from "@/components/event/event-config";
@@ -97,7 +98,7 @@ export default function EventDetailPageClient() {
         <h2 className="font-serif text-h2 tracking-tight">活动介绍</h2>
         <Card>
           <CardContent className="pt-6">
-            <p className="whitespace-pre-wrap">{event.description}</p>
+            <ProfileMarkdown source={event.description} />
           </CardContent>
         </Card>
       </section>
