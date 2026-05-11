@@ -23,7 +23,7 @@ export async function generateStaticParams() {
 
   for (const baseUrl of resolveBaseUrls()) {
     try {
-      const res = await fetch(`${baseUrl}/api/activities`, { cache: "no-store" });
+      const res = await fetch(`${baseUrl}/api/activities`, { cache: "force-cache" });
       if (!res.ok) continue;
       const data = (await res.json()) as { events?: EventIndexItem[] };
       for (const e of data.events ?? []) {
