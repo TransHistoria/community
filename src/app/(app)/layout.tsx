@@ -4,14 +4,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 
-const PUBLIC_EVENT_DETAIL_PATTERN = /^\/events\/[^/]+$/;
-const PUBLIC_USER_PROFILE_PATTERN = /^\/u\/[^/]+$/;
+const GUEST_ACCESSIBLE_EVENT_DETAIL_PATTERN = /^\/events\/[^/]+$/;
+const GUEST_ACCESSIBLE_USER_PROFILE_PATTERN = /^\/u\/[^/]+$/;
 
 function isGuestAccessiblePath(pathname: string): boolean {
   return (
     pathname === "/events" ||
-    PUBLIC_EVENT_DETAIL_PATTERN.test(pathname) ||
-    PUBLIC_USER_PROFILE_PATTERN.test(pathname)
+    GUEST_ACCESSIBLE_EVENT_DETAIL_PATTERN.test(pathname) ||
+    GUEST_ACCESSIBLE_USER_PROFILE_PATTERN.test(pathname)
   );
 }
 
