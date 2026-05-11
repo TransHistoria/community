@@ -5,7 +5,6 @@
 import type { SendEmail } from "@cloudflare/workers-types";
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
-import { toString as toQrString } from "qrcode";
 import {
   verificationEmailHtml,
   totpSetupEmailHtml,
@@ -64,13 +63,9 @@ export async function sendTotpSetupEmail(
   p: SendParams,
   args: { to: string; secret: string; otpauthUrl: string },
 ): Promise<void> {
-  const qrAscii = await toQrString(args.otpauthUrl, {
-    type: "utf8",
-  });
   const { html, text } = totpSetupEmailHtml({
     appName: p.appName,
     secret: args.secret,
-    qrAscii,
     otpauthUrl: args.otpauthUrl,
   });
   await send(p.sendEmail, p.from, args.to, `${p.appName} TOTP 初始化`, html, text);
