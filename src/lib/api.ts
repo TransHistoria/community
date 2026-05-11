@@ -2,13 +2,20 @@
 // All mutations that were previously Next.js server actions are now fetch()
 // calls to the worker.
 
-// Use || so that an empty string (e.g. unset GitHub Actions variable that
-// expands to "") falls through to the hardcoded default, just as undefined
-// would.  ?? only guards against null/undefined, not "".
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://transcommunity.cyanmint.workers.dev"
-).replace(/\/$/, "");
+const FALLBACK_WORKER_URL = "https://transcommunity.cyanmint.workers.dev";
+const CONFIGURED_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
+
+function resolveBaseUrls(): string[] {
+  const urls: string[] = [];
+  if (CONFIGURED_BASE_URL) urls.push(CONFIGURED_BASE_URL);
+  if (typeof window !== "undefined" && window.location?.origin) urls.push(window.location.origin);
+  if (!urls.includes(FALLBACK_WORKER_URL)) urls.push(FALLBACK_WORKER_URL);
+  return urls;
+}
+
+function getPrimaryBaseUrl(): string {
+  return resolveBaseUrls()[0] ?? FALLBACK_WORKER_URL;
+}
 
 // ---- Low-level fetch helper ----
 
@@ -38,19 +45,33 @@ async function request<T>(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  const baseUrls = resolveBaseUrls();
+  let lastNetworkError: unknown = null;
 
-  if (!res.ok) {
-    let message = res.statusText;
+  for (const baseUrl of baseUrls) {
     try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {}
-    throw new ApiError(res.status, message);
+      const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+
+      if (!res.ok) {
+        let message = res.statusText;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body.error) message = body.error;
+        } catch {}
+        throw new ApiError(res.status, message);
+      }
+
+      if (res.status === 204) return undefined as T;
+      return res.json() as Promise<T>;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      lastNetworkError = err;
+    }
   }
 
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  throw lastNetworkError instanceof Error
+    ? lastNetworkError
+    : new Error("请求失败，请检查网络连接");
 }
 
 const get = <T>(path: string) => request<T>(path, { method: "GET" });
@@ -465,7 +486,7 @@ export const api = {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("purpose", purpose);
-      return fetch(`${BASE_URL}/api/files`, {
+      return fetch(`${getPrimaryBaseUrl()}/api/files`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
@@ -477,7 +498,7 @@ export const api = {
         return res.json() as Promise<{ ok: boolean; url: string }>;
       });
     },
-    url: (path: string): string => `${BASE_URL}${path}`,
+    url: (path: string): string => `${getPrimaryBaseUrl()}${path}`,
   },
 
   // Reports

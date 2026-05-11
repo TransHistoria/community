@@ -28,7 +28,8 @@ function EventsPageInner() {
   React.useEffect(() => {
     api.events
       .list({ category: cat, format: fmt, city, q })
-      .then((res: { events: Event[] }) => setEvents(res.events));
+      .then((res: { events: Event[] }) => setEvents(res.events))
+      .catch(() => setEvents([]));
   }, [cat, fmt, city, q]);
 
   return (
