@@ -21,6 +21,7 @@ dist
 # env
 .env
 .env*.local
+worker/.dev.vars
 
 # vercel
 .vercel
@@ -32,6 +33,11 @@ next-env.d.ts
 # storage (local uploads)
 storage/
 
+# wrangler local dev state (D1 / R2 snapshots, tmp bundles)
+worker/.wrangler/
+worker/tmp/
+
 # misc
 .idea/
 .vscode/
+package-lock.json

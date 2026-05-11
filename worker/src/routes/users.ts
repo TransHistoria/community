@@ -251,6 +251,17 @@ users.post("/:handle/contact-requests", requireAuth, async (c) => {
   const body = await c.req.json<{ contactId?: string; reason: string }>();
   if (!body.reason?.trim()) return c.json({ error: "请填写申请理由" }, 400);
 
+  // SQLite's UNIQUE constraint treats NULL != NULL, so a plain INSERT would not
+  // catch duplicate requests when contact_id is NULL.  Do an explicit pre-check.
+  const existingReq = await c.env.DB.prepare(
+    `SELECT id FROM contact_requests
+     WHERE requester_id = ? AND target_id = ? AND status NOT IN ('DECLINED')
+       AND contact_id IS ?`,
+  )
+    .bind(viewer.id, target.id, body.contactId ?? null)
+    .first<{ id: string }>();
+  if (existingReq) return c.json({ error: "请求已存在" }, 409);
+
   const id = newId();
   try {
     await c.env.DB.prepare(

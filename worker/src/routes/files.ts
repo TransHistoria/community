@@ -48,8 +48,9 @@ files.post("/", requireAuth, async (c) => {
 
 // GET /api/files/* — serve a file from R2
 files.get("/*", async (c) => {
-  // Strip the leading "/" from the sub-path to get the R2 object key
-  const key = c.req.param("*") ?? "";
+  // In Hono v4, c.req.param("*") is undefined for wildcard routes inside a
+  // mounted sub-router.  Derive the R2 key from the full request path instead.
+  const key = decodeURIComponent(c.req.path.replace(/^\/api\/files\//, "").replace(/^\/+/, ""));
   if (!key) return c.json({ error: "Not found" }, 404);
 
   const obj = await c.env.FILES.get(key);
