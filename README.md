@@ -7,8 +7,8 @@
 ## 技术栈
 
 - **Next.js 14 (App Router)** + TypeScript
-- **PostgreSQL + Prisma** ORM
-- **Auth.js v5** 邮箱魔法链接登录
+- **Cloudflare Workers (Hono) + D1**
+- **Wrangler** 本地运行与部署（`wrangler dev` / `wrangler deploy`）
 - **Tailwind CSS** + 自研 UI 组件（基于 Radix Primitives）
 - **React Hook Form + Zod** 表单与校验
 - **Resend / SMTP** 邮件
@@ -39,11 +39,9 @@
 | 命令 | 说明 |
 |---|---|
 | `pnpm dev` | 启动开发服务器 |
-| `pnpm db:migrate` | 应用迁移（开发） |
-| `pnpm db:reset` | 重置数据库（销毁数据） |
-| `pnpm db:studio` | Prisma Studio 数据浏览 |
-| `pnpm create-admin <email>` | 创建/提升管理员 |
-| `pnpm issue-invite <email>` | 命令行签发邀请码 |
+| `cd worker && pnpm run dev` | 本地运行 Worker 后端（Wrangler） |
+| `cd worker && pnpm run setup` | 部署前执行 D1 migration/setup |
+| `cd worker && pnpm run deploy` | 部署到 Cloudflare（包含 setup） |
 | `pnpm typecheck` | TS 类型检查 |
 | `pnpm test` | 单元测试 |
 | `pnpm test:e2e` | Playwright 端到端 |
@@ -84,6 +82,10 @@ prisma/
 scripts/
 ├─ create-admin.ts
 └─ issue-invite.ts
+worker/
+├─ wrangler.jsonc
+├─ migrations/
+└─ src/
 ```
 
 ## 用户分级

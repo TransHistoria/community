@@ -16,7 +16,7 @@
 - **联系方式可见性按需开放** — 公开 / 认证可见 / 信任可见 / 申请才可见
 - **线下精确地址、线上会议链接永远只对报名通过的成员可见**
 
-技术栈：Next.js 14 (App Router) + TypeScript + Prisma + Tailwind + Auth.js v5 + shadcn 风格的自研组件。
+技术栈：Next.js 14 (App Router) + TypeScript + Cloudflare Workers（Hono）+ D1 + Wrangler + Tailwind。
 
 ---
 
@@ -149,12 +149,9 @@ pnpm dev                   # http://localhost:3000
 | `pnpm build` | 生产构建 |
 | `pnpm typecheck` | TS 类型检查 |
 | `pnpm lint` | ESLint |
-| `pnpm db:migrate` | 应用 Prisma 迁移 |
-| `pnpm db:studio` | Prisma Studio（浏览数据） |
-| `pnpm db:reset` | **销毁并重建数据库** |
-| `pnpm db:seed` | 跑种子脚本 |
-| `pnpm create-admin <email>` | 创建/提级 ADMIN |
-| `pnpm issue-invite [--note "x"] [--days 30]` | 命令行签发邀请码 |
+| `cd worker && pnpm run dev` | 本地运行 Worker 后端（Wrangler） |
+| `cd worker && pnpm run setup` | 部署前 migration/setup |
+| `cd worker && pnpm run deploy` | 部署到 Cloudflare（包含 setup） |
 | `pnpm tsx scripts/dev-session.ts <email>` | dev-only：mint 一个 session token |
 
 ### Dev-only 调试登录
