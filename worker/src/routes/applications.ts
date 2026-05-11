@@ -117,15 +117,23 @@ applications.patch("/:id", requireAuth, requireTier("ADMIN"), async (c) => {
       .bind(id, app.email)
       .run();
 
-    sendApplicationApprovedEmail(
-      { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-      { to: app.email },
-    ).catch(() => {});
+    c.executionCtx.waitUntil(
+      sendApplicationApprovedEmail(
+        { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+        { to: app.email },
+      ).catch((err) => {
+        console.error("Failed to send application approved email:", err);
+      }),
+    );
   } else {
-    sendApplicationRejectedEmail(
-      { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-      { to: app.email, note: body.note },
-    ).catch(() => {});
+    c.executionCtx.waitUntil(
+      sendApplicationRejectedEmail(
+        { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+        { to: app.email, note: body.note },
+      ).catch((err) => {
+        console.error("Failed to send application rejected email:", err);
+      }),
+    );
   }
 
   // Audit log
