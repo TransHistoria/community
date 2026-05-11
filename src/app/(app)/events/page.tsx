@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { api } from "@/lib/api";
+import type { Event } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canCreateEvent } from "@/lib/access";
 import { PageHeader } from "@/components/ui/page-header";
@@ -17,7 +18,7 @@ import { Plus } from "lucide-react";
 function EventsPageInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  const [events, setEvents] = React.useState<unknown[]>([]);
+  const [events, setEvents] = React.useState<Event[]>([]);
 
   const cat = searchParams.get("category") ?? undefined;
   const fmt = searchParams.get("format") ?? undefined;
@@ -27,7 +28,7 @@ function EventsPageInner() {
   React.useEffect(() => {
     api.events
       .list({ category: cat, format: fmt, city, q })
-      .then((res: { events: unknown[] }) => setEvents(res.events));
+      .then((res: { events: Event[] }) => setEvents(res.events));
   }, [cat, fmt, city, q]);
 
   return (
@@ -74,8 +75,8 @@ function EventsPageInner() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(events as { id: string }[]).map((e) => (
-            <EventCard key={e.id} event={e as any} />
+          {events.map((e) => (
+            <EventCard key={e.id} event={e} />
           ))}
         </div>
       )}
