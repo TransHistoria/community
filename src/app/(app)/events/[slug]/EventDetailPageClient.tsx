@@ -94,6 +94,15 @@ export default function EventDetailPageClient() {
       </Card>
 
       <section className="space-y-3">
+        <h2 className="font-serif text-h2 tracking-tight">活动介绍</h2>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="whitespace-pre-wrap">{event.description}</p>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="font-serif text-h2 tracking-tight">报名</h2>
         <Card>
           <CardContent className="pt-6 space-y-3">
