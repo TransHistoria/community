@@ -3,7 +3,6 @@ import "@/styles/globals.css";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { SpaRecovery } from "./SpaRecovery";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -45,8 +44,13 @@ export default function RootLayout({
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>
+        {/* Runs synchronously before Next.js JS loads: reads the ?_spa= param
+            written by the 404.html redirect script, sets window.__SPA_RECOVERED
+            so the not-found script knows it is running inside the app rather
+            than as a raw GitHub Pages 404, then calls history.replaceState so
+            the router initialises with the correct URL (no RSC fetch needed). */}
+        <script dangerouslySetInnerHTML={{ __html: "(function(){var p=new URLSearchParams(location.search).get('_spa');if(p){window.__SPA_RECOVERED=true;history.replaceState(null,'',p);}})();" }} />
         <AuthProvider>
-          <SpaRecovery />
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
       </body>
