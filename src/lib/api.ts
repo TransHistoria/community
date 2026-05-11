@@ -2,19 +2,25 @@
 // All mutations that were previously Next.js server actions are now fetch()
 // calls to the worker.
 
-const FALLBACK_WORKER_URL = "https://transcommunity.cyanmint.workers.dev";
+const LEGACY_WORKER_URL = "https://transcommunity.cyanmint.workers.dev";
+const COMMUNITY_DOMAIN_URL = "https://community.transhistoria.org";
 const CONFIGURED_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
+const CONFIGURED_FALLBACK_BASE_URL = (process.env.NEXT_PUBLIC_API_FALLBACK_URL || "")
+  .trim()
+  .replace(/\/$/, "");
 
 function resolveBaseUrls(): string[] {
   const urls: string[] = [];
   if (CONFIGURED_BASE_URL) urls.push(CONFIGURED_BASE_URL);
+  if (CONFIGURED_FALLBACK_BASE_URL) urls.push(CONFIGURED_FALLBACK_BASE_URL);
+  if (!urls.includes(COMMUNITY_DOMAIN_URL)) urls.push(COMMUNITY_DOMAIN_URL);
   if (typeof window !== "undefined" && window.location?.origin) urls.push(window.location.origin);
-  if (!urls.includes(FALLBACK_WORKER_URL)) urls.push(FALLBACK_WORKER_URL);
+  if (!urls.includes(LEGACY_WORKER_URL)) urls.push(LEGACY_WORKER_URL);
   return urls;
 }
 
 function getPrimaryBaseUrl(): string {
-  return resolveBaseUrls()[0] ?? FALLBACK_WORKER_URL;
+  return resolveBaseUrls()[0] ?? COMMUNITY_DOMAIN_URL;
 }
 
 // ---- Low-level fetch helper ----
