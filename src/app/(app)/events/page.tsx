@@ -70,7 +70,7 @@ function EventsPageInner() {
           title="当前没有可显示的活动"
           description={
             loadFailed
-              ? "活动加载失败，请稍后重试或检查网络设置。"
+              ? "活动加载失败。若你使用了广告拦截插件，请允许访问 transcommunity.cyanmint.workers.dev 后重试。"
               : canCreateEvent(user)
               ? "你也可以是第一个组织活动的人。"
               : "完成认证后可以参加活动；信任成员还能发布。"

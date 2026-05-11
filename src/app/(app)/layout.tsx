@@ -17,7 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [user, loading, router, isGuestAccessibleEventsList]);
 
   if (loading && !isGuestAccessibleEventsList) return null;
-  if (!user && isGuestAccessibleEventsList) return <>{children}</>;
+  if (!user && isGuestAccessibleEventsList) return <AppShell>{children}</AppShell>;
   if (!user) return null;
   return <AppShell>{children}</AppShell>;
 }
