@@ -33,7 +33,6 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
       const res = await api.auth.loginTotp(parsed.data.email, parsed.data.code);
       login(res.token, res.user);
       router.push(callbackUrl);
-      router.refresh();
     } catch {
       setError("登录失败，请检查邮箱和验证码。");
     } finally {
