@@ -21,13 +21,20 @@ app.use(
   "/*",
   cors({
     origin: (origin, c) => {
-      const allowed = [
-        c.env.FRONTEND_URL,
+      const configuredOrigins = (c.env.FRONTEND_URL ?? "")
+        .split(",")
+        .map((v: string) => v.trim())
+        .filter(Boolean);
+      const allowed = new Set([
+        ...configuredOrigins,
+        "https://community.transhistoria.org",
+        "https://transhistoria.github.io/community",
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
-      ].filter(Boolean);
-      return allowed.includes(origin) ? origin : allowed[0] ?? origin;
+      ]);
+      if (!origin) return configuredOrigins[0] ?? "https://community.transhistoria.org";
+      return allowed.has(origin) ? origin : "";
     },
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
