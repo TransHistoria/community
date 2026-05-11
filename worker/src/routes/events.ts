@@ -92,17 +92,19 @@ events.get("/", optionalAuth, async (c) => {
   return c.json({ events: rows.results });
 });
 
-// GET /api/activities/:slug
+// GET /api/activities/:slugOrId
 events.get("/:slug", optionalAuth, async (c) => {
   const { slug } = c.req.param();
   const viewer = viewerFrom(c);
 
   const event = await c.env.DB.prepare(
     `SELECT e.*, u.handle AS organizer_handle, u.display_name AS organizer_name, u.avatar_url AS organizer_avatar
-     FROM events e JOIN users u ON u.id = e.organizer_id
-     WHERE e.slug = ?`,
+      FROM events e JOIN users u ON u.id = e.organizer_id
+      WHERE e.slug = ? OR e.id = ?
+      ORDER BY CASE WHEN e.slug = ? THEN 0 ELSE 1 END
+      LIMIT 1`,
   )
-    .bind(slug)
+    .bind(slug, slug, slug)
     .first<EventRow & { organizer_handle: string; organizer_name: string; organizer_avatar: string | null }>();
 
   if (!event) return c.json({ error: "活动不存在" }, 404);

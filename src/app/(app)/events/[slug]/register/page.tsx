@@ -15,7 +15,7 @@ function resolveBaseUrls(): string[] {
   return candidates.filter((url, i) => !!url && candidates.indexOf(url) === i);
 }
 
-type EventIndexItem = { slug?: string | null };
+type EventIndexItem = { id?: string | null; slug?: string | null };
 const EVENT_SLUG_FALLBACKS = ["placeholder", "event"] as const;
 
 export async function generateStaticParams() {
@@ -27,6 +27,7 @@ export async function generateStaticParams() {
       if (!res.ok) continue;
       const data = (await res.json()) as { events?: EventIndexItem[] };
       for (const e of data.events ?? []) {
+        if (e.id) slugs.add(e.id);
         if (e.slug) slugs.add(e.slug);
       }
       break;
