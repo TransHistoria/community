@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { signIn } from "next-auth/react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
   const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,15 +22,22 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
     }
     setPending(true);
     try {
-      await signIn("email", {
-        email: parsed.data,
-        callbackUrl,
-        redirect: true,
-      });
+      await api.auth.sendLink(parsed.data, callbackUrl);
+      setSent(true);
     } catch {
       setError("发送失败，请稍后重试。");
+    } finally {
       setPending(false);
     }
+  }
+
+  if (sent) {
+    return (
+      <div className="text-center space-y-2">
+        <p className="text-sm font-medium">登录链接已发送到你的邮箱</p>
+        <p className="text-xs text-ink-subtle">链接 30 分钟内有效，仅限一次。</p>
+      </div>
+    );
   }
 
   return (

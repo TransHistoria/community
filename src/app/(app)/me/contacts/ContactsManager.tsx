@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import type { ContactMethod } from "@prisma/client";
+import { api } from "@/lib/api";
 import type { ContactKind, Visibility } from "@/lib/enums";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast-context";
-import { useRouter } from "next/navigation";
 import { Trash2, Pencil, Plus, X } from "lucide-react";
 import {
   CONTACT_KIND_LABEL,
   VISIBILITY_LABEL,
   VISIBILITY_SHORT,
 } from "@/components/user/contact-config";
-import { addContact, deleteContact, updateContact } from "./actions";
+
+type ContactMethod = {
+  id: string;
+  kind: string;
+  value: string;
+  label?: string | null;
+  visibility: string;
+};
 
 type Draft = {
   kind: ContactKind;
@@ -56,27 +62,35 @@ const VISIBILITIES: Visibility[] = [
   "HIDDEN_REQUEST",
 ];
 
-export function ContactsManager({ initial }: { initial: ContactMethod[] }) {
+export function ContactsManager({
+  contacts,
+  onRefresh,
+}: {
+  contacts: unknown[];
+  onRefresh: () => void;
+}) {
   const { toast } = useToast();
-  const router = useRouter();
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editDraft, setEditDraft] = React.useState<Draft>(EMPTY_DRAFT);
+
+  const items = contacts as ContactMethod[];
 
   async function onAdd() {
     if (!draft.value.trim()) {
       toast({ title: "请填写联系方式", variant: "danger" });
       return;
     }
-    const res = await addContact(draft);
-    if (res.ok) {
+    try {
+      await api.users.addContact(draft);
       toast({ title: "已添加", variant: "success" });
       setDraft(EMPTY_DRAFT);
       setAdding(false);
-      router.refresh();
-    } else {
-      toast({ title: "添加失败", description: res.error, variant: "danger" });
+      onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "添加失败";
+      toast({ title: "添加失败", description: msg, variant: "danger" });
     }
   }
 
@@ -91,34 +105,36 @@ export function ContactsManager({ initial }: { initial: ContactMethod[] }) {
   }
 
   async function onUpdate(id: string) {
-    const res = await updateContact(id, editDraft);
-    if (res.ok) {
+    try {
+      await api.users.updateContact(id, editDraft);
       toast({ title: "已更新", variant: "success" });
       setEditingId(null);
-      router.refresh();
-    } else {
-      toast({ title: "更新失败", description: res.error, variant: "danger" });
+      onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "更新失败";
+      toast({ title: "更新失败", description: msg, variant: "danger" });
     }
   }
 
   async function onDelete(id: string) {
     if (!window.confirm("确认删除这条联系方式？")) return;
-    const res = await deleteContact(id);
-    if (res.ok) {
+    try {
+      await api.users.deleteContact(id);
       toast({ title: "已删除", variant: "success" });
-      router.refresh();
-    } else {
-      toast({ title: "删除失败", description: res.error, variant: "danger" });
+      onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "删除失败";
+      toast({ title: "删除失败", description: msg, variant: "danger" });
     }
   }
 
   return (
     <div className="space-y-4">
-      {initial.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-sm text-ink-muted">还没有添加任何联系方式。</p>
       ) : (
         <ul className="space-y-2">
-          {initial.map((c) => {
+          {items.map((c) => {
             const isEditing = editingId === c.id;
             return (
               <li key={c.id}>
@@ -143,11 +159,7 @@ export function ContactsManager({ initial }: { initial: ContactMethod[] }) {
                     <div className="flex items-center justify-end gap-2">
                       {isEditing ? (
                         <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditingId(null)}
-                          >
+                          <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
                             <X className="h-4 w-4" /> 取消
                           </Button>
                           <Button size="sm" onClick={() => onUpdate(c.id)}>
@@ -156,11 +168,7 @@ export function ContactsManager({ initial }: { initial: ContactMethod[] }) {
                         </>
                       ) : (
                         <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => startEdit(c)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(c)}>
                             <Pencil className="h-4 w-4" /> 编辑
                           </Button>
                           <Button
@@ -241,9 +249,7 @@ function ContactDraftFields({
         <Label>可见性</Label>
         <Select
           value={draft.visibility}
-          onValueChange={(v) =>
-            setDraft({ ...draft, visibility: v as Visibility })
-          }
+          onValueChange={(v) => setDraft({ ...draft, visibility: v as Visibility })}
         >
           <SelectTrigger>
             <SelectValue />

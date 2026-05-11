@@ -1,7 +1,6 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { exportMyData } from "./actions";
 import { Download } from "lucide-react";
 
 export function ExportButton() {
@@ -12,17 +11,25 @@ export function ExportButton() {
       disabled={pending}
       onClick={async () => {
         setPending(true);
-        const data = await exportMyData();
-        setPending(false);
-        const blob = new Blob([JSON.stringify(data, null, 2)], {
-          type: "application/json",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `my-data-${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        try {
+          const token = localStorage.getItem("tc_token");
+          const res = await fetch("/api/users/me/export", {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!res.ok) throw new Error("导出失败");
+          const data = await res.json();
+          const blob = new Blob([JSON.stringify(data, null, 2)], {
+            type: "application/json",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `my-data-${new Date().toISOString().slice(0, 10)}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        } finally {
+          setPending(false);
+        }
       }}
     >
       <Download className="h-4 w-4" />

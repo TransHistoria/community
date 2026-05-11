@@ -1,17 +1,17 @@
 "use client";
 import * as React from "react";
-import { signIn } from "next-auth/react";
+import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { signUpInviteSchema } from "@/lib/validators/auth";
-import { consumeInvitePreCheck } from "./actions";
 
 export function InviteSignUpForm() {
   const [email, setEmail] = React.useState("");
   const [code, setCode] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,17 +22,25 @@ export function InviteSignUpForm() {
       return;
     }
     setPending(true);
-    const res = await consumeInvitePreCheck(parsed.data);
-    if (!res.ok) {
-      setError(res.error);
+    try {
+      await api.auth.verifyInvite(parsed.data.email, parsed.data.code);
+      await api.auth.sendLink(parsed.data.email, "/me/profile?onboarding=1");
+      setSent(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "校验失败，请检查邀请码";
+      setError(msg);
+    } finally {
       setPending(false);
-      return;
     }
-    await signIn("email", {
-      email: parsed.data.email,
-      callbackUrl: "/me/profile?onboarding=1",
-      redirect: true,
-    });
+  }
+
+  if (sent) {
+    return (
+      <div className="text-center space-y-2">
+        <p className="text-sm font-medium">登录链接已发送到你的邮箱</p>
+        <p className="text-xs text-ink-subtle">链接 30 分钟内有效，仅限一次。</p>
+      </div>
+    );
   }
 
   return (

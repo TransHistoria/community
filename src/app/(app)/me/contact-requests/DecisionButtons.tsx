@@ -1,38 +1,30 @@
 "use client";
 import * as React from "react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { decideContactRequest } from "./actions";
 import { useToast } from "@/components/ui/toast-context";
-import { useRouter } from "next/navigation";
 
-export function DecisionButtons({ requestId }: { requestId: string }) {
+export function DecisionButtons({ requestId, onDecided }: { requestId: string; onDecided?: () => void }) {
   const [pending, setPending] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
 
   async function decide(decision: "APPROVED" | "DECLINED") {
     setPending(true);
-    const res = await decideContactRequest(requestId, decision);
-    setPending(false);
-    if (res.ok) {
-      toast({
-        title: decision === "APPROVED" ? "已同意" : "已拒绝",
-        variant: "success",
-      });
-      router.refresh();
-    } else {
-      toast({ title: "操作失败", description: res.error, variant: "danger" });
+    try {
+      await api.users.decideContactRequest(requestId, decision);
+      toast({ title: decision === "APPROVED" ? "已同意" : "已拒绝", variant: "success" });
+      onDecided?.();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "操作失败";
+      toast({ title: "操作失败", description: msg, variant: "danger" });
+    } finally {
+      setPending(false);
     }
   }
 
   return (
     <div className="flex gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={pending}
-        onClick={() => decide("DECLINED")}
-      >
+      <Button size="sm" variant="outline" disabled={pending} onClick={() => decide("DECLINED")}>
         拒绝
       </Button>
       <Button size="sm" disabled={pending} onClick={() => decide("APPROVED")}>

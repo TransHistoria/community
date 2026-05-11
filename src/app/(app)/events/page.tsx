@@ -1,59 +1,34 @@
+"use client";
+import * as React from "react";
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
-import { visibleEventsWhere } from "@/lib/access/queries";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { canCreateEvent } from "@/lib/access";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EventCard } from "@/components/event/EventCard";
 import { EmptyState } from "@/components/ui/empty";
 import { ALL_CATEGORIES, CATEGORY_LABEL } from "@/components/event/event-config";
-import type { EventCategory, EventFormat } from "@/lib/enums";
+import type { EventCategory } from "@/lib/enums";
 import { Plus } from "lucide-react";
 
-export const metadata = { title: "活动" };
+function EventsPageInner() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const [events, setEvents] = React.useState<unknown[]>([]);
 
-export default async function EventsPage({
-  searchParams,
-}: {
-  searchParams: { category?: string; format?: string; city?: string; q?: string };
-}) {
-  const viewer = await getCurrentUser();
+  const cat = searchParams.get("category") ?? undefined;
+  const fmt = searchParams.get("format") ?? undefined;
+  const city = searchParams.get("city") ?? undefined;
+  const q = searchParams.get("q") ?? undefined;
 
-  const cat = ALL_CATEGORIES.includes(searchParams.category as EventCategory)
-    ? (searchParams.category as EventCategory)
-    : undefined;
-  const fmt = (["ONLINE", "OFFLINE", "HYBRID"] as EventFormat[]).includes(
-    searchParams.format as EventFormat,
-  )
-    ? (searchParams.format as EventFormat)
-    : undefined;
-
-  const baseWhere = visibleEventsWhere(viewer);
-
-  const events = await db.event.findMany({
-    where: {
-      ...baseWhere,
-      ...(cat ? { category: cat } : {}),
-      ...(fmt ? { format: fmt } : {}),
-      ...(searchParams.city
-        ? { city: { contains: searchParams.city } }
-        : {}),
-      ...(searchParams.q
-        ? {
-            OR: [
-              { title: { contains: searchParams.q } },
-              { description: { contains: searchParams.q } },
-            ],
-          }
-        : {}),
-      endAt: { gte: new Date() },
-      status: "PUBLISHED",
-    },
-    include: { _count: { select: { registrations: true } } },
-    orderBy: { startAt: "asc" },
-    take: 60,
-  });
+  React.useEffect(() => {
+    api.events
+      .list({ category: cat, format: fmt, city, q })
+      .then(({ events: evs }) => setEvents(evs));
+  }, [cat, fmt, city, q]);
 
   return (
     <div className="space-y-8">
@@ -62,7 +37,7 @@ export default async function EventsPage({
         title="社群里的活动"
         description="按分类与形式浏览。线下活动的精确地点在报名通过后可见。"
         actions={
-          canCreateEvent(viewer) ? (
+          canCreateEvent(user) ? (
             <Button asChild>
               <Link href="/events/new">
                 <Plus className="h-4 w-4" /> 创建活动
@@ -73,16 +48,10 @@ export default async function EventsPage({
       />
 
       <div className="flex flex-wrap gap-2">
-        <FilterPill href="/events" active={!cat}>
-          全部
-        </FilterPill>
+        <FilterPill href="/events" active={!cat}>全部</FilterPill>
         {ALL_CATEGORIES.map((c) => (
-          <FilterPill
-            key={c}
-            href={`/events?category=${c}`}
-            active={cat === c}
-          >
-            {CATEGORY_LABEL[c]}
+          <FilterPill key={c} href={`/events?category=${c}`} active={cat === c}>
+            {CATEGORY_LABEL[c as EventCategory]}
           </FilterPill>
         ))}
       </div>
@@ -91,12 +60,12 @@ export default async function EventsPage({
         <EmptyState
           title="当前没有可显示的活动"
           description={
-            canCreateEvent(viewer)
+            canCreateEvent(user)
               ? "你也可以是第一个组织活动的人。"
               : "完成认证后可以参加活动；信任成员还能发布。"
           }
           action={
-            canCreateEvent(viewer) ? (
+            canCreateEvent(user) ? (
               <Button asChild>
                 <Link href="/events/new">创建一个活动</Link>
               </Button>
@@ -105,7 +74,7 @@ export default async function EventsPage({
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((e) => (
+          {(events as { id: string }[]).map((e) => (
             <EventCard key={e.id} event={e} />
           ))}
         </div>
@@ -114,15 +83,15 @@ export default async function EventsPage({
   );
 }
 
-function FilterPill({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
+export default function EventsPage() {
+  return (
+    <Suspense>
+      <EventsPageInner />
+    </Suspense>
+  );
+}
+
+function FilterPill({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
     <Link
       href={href}

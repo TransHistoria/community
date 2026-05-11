@@ -1,14 +1,11 @@
+"use client";
 import Link from "next/link";
-import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ExportButton } from "./ExportButton";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 
-export const metadata = { title: "设置" };
-
-export default async function MeSettingsPage() {
-  await requireUser();
+export default function MeSettingsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader eyebrow="设置" title="账号与隐私" />
@@ -31,10 +28,7 @@ export default async function MeSettingsPage() {
           <CardDescription>管理你已经拉黑的成员。</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link
-            href="/me/blocks"
-            className="text-sm text-trans-blue-deep hover:underline"
-          >
+          <Link href="/me/blocks" className="text-sm text-trans-blue-deep hover:underline">
             前往拉黑列表 →
           </Link>
         </CardContent>

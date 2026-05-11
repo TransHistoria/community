@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { env } from "@/lib/env";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "TransHistoria";
 
 export function Logo({ href = "/" }: { href?: string }) {
   return (
@@ -11,7 +12,7 @@ export function Logo({ href = "/" }: { href?: string }) {
         aria-hidden
         className="inline-block h-5 w-5 rounded-full bg-trans-gradient ring-2 ring-bg-warm"
       />
-      <span>{env.app.name}</span>
+      <span>{APP_NAME}</span>
     </Link>
   );
 }

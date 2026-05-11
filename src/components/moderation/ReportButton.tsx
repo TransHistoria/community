@@ -13,7 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast-context";
-import { submitReport } from "./actions";
+import { api } from "@/lib/api";
 
 export function ReportButton({
   targetType,
@@ -37,7 +37,7 @@ export function ReportButton({
       return;
     }
     setPending(true);
-    const res = await submitReport({ targetType, targetId, reason: reason.trim() });
+    const res = await api.reports.submit(targetType, targetId, reason.trim());
     setPending(false);
     if (res.ok) {
       toast({ title: "已收到举报，会尽快处理", variant: "success" });

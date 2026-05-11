@@ -1,14 +1,12 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { cancelMyRegistration } from "@/app/(app)/events/actions";
+import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/toast-context";
-import { useRouter } from "next/navigation";
 
-export function CancelMyRegistrationButton({ eventId }: { eventId: string }) {
+export function CancelMyRegistrationButton({ registrationId }: { registrationId: string }) {
   const [pending, setPending] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
   return (
     <Button
       variant="outline"
@@ -17,13 +15,13 @@ export function CancelMyRegistrationButton({ eventId }: { eventId: string }) {
       onClick={async () => {
         if (!window.confirm("确认取消报名？")) return;
         setPending(true);
-        const res = await cancelMyRegistration(eventId);
+        const res = await api.events.cancelRegistration(registrationId);
         setPending(false);
         if (res.ok) {
           toast({ title: "已取消报名", variant: "success" });
-          router.refresh();
+          window.location.reload();
         } else {
-          toast({ title: "操作失败", description: res.error, variant: "danger" });
+          toast({ title: "操作失败", variant: "danger" });
         }
       }}
     >

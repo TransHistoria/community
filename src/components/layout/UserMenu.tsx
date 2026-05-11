@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -30,6 +30,7 @@ export function UserMenu({
     tier: string;
   };
 }) {
+  const { logout } = useAuth();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-full ring-offset-bg-warm focus:outline-none focus-visible:ring-2 focus-visible:ring-trans-blue focus-visible:ring-offset-2">
@@ -92,7 +93,7 @@ export function UserMenu({
           className="text-destructive"
           onSelect={(e) => {
             e.preventDefault();
-            signOut({ callbackUrl: "/" });
+            logout();
           }}
         >
           退出登录

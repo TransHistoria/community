@@ -1,12 +1,18 @@
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+"use client";
+import * as React from "react";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty";
 import { Card, CardContent } from "@/components/ui/card";
 import { relativeTime } from "@/lib/utils";
-import { jsonDecode } from "@/lib/json";
 
-export const metadata = { title: "通知" };
+type Notification = {
+  id: string;
+  kind: string;
+  payload?: string | null;
+  read_at?: string | null;
+  created_at: string;
+};
 
 const KIND_LABEL: Record<string, string> = {
   CONTACT_REQ: "你收到一条联系方式申请",
@@ -22,27 +28,20 @@ const KIND_LABEL: Record<string, string> = {
   APP_APPROVED: "你的入站申请已通过",
 };
 
-// Internal kinds (e.g. INVITE_PRECHECK) are not surfaced to users.
-const HIDDEN_KINDS = ["INVITE_PRECHECK"];
+export default function NotificationsPage() {
+  const [notifs, setNotifs] = React.useState<Notification[]>([]);
 
-export default async function NotificationsPage() {
-  const viewer = await requireUser();
-  const notifs = await db.notification.findMany({
-    where: { userId: viewer.id, kind: { notIn: HIDDEN_KINDS } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-
-  if (notifs.some((n) => !n.readAt)) {
-    await db.notification.updateMany({
-      where: {
-        userId: viewer.id,
-        readAt: null,
-        kind: { notIn: HIDDEN_KINDS },
-      },
-      data: { readAt: new Date() },
+  React.useEffect(() => {
+    api.notifications.list().then(({ notifications }) => {
+      setNotifs(notifications as Notification[]);
+      const unread = (notifications as Notification[])
+        .filter((n) => !n.read_at)
+        .map((n) => n.id);
+      if (unread.length > 0) {
+        api.notifications.markRead(unread);
+      }
     });
-  }
+  }, []);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -59,16 +58,20 @@ export default async function NotificationsPage() {
                 </div>
                 <div className="text-xs text-ink-muted">
                   {(() => {
-                    const p = jsonDecode<Record<string, unknown>>(n.payload);
-                    if (!p) return null;
-                    return Object.entries(p)
-                      .filter(([, v]) => typeof v === "string" || typeof v === "number")
-                      .map(([k, v]) => `${k}: ${String(v)}`)
-                      .join(" · ");
+                    if (!n.payload) return null;
+                    try {
+                      const p = JSON.parse(n.payload) as Record<string, unknown>;
+                      return Object.entries(p)
+                        .filter(([, v]) => typeof v === "string" || typeof v === "number")
+                        .map(([k, v]) => `${k}: ${String(v)}`)
+                        .join(" · ");
+                    } catch {
+                      return null;
+                    }
                   })()}
                 </div>
                 <div className="text-xs text-ink-subtle">
-                  {relativeTime(n.createdAt)}
+                  {relativeTime(new Date(n.created_at))}
                 </div>
               </CardContent>
             </Card>

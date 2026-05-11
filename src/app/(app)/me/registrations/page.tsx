@@ -1,13 +1,21 @@
+"use client";
+import * as React from "react";
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty";
 import { formatTimeRange } from "@/lib/utils";
 
-export const metadata = { title: "我的报名" };
+type Registration = {
+  id: string;
+  status: string;
+  slug: string;
+  title: string;
+  start_at: string;
+  end_at?: string | null;
+};
 
 const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warn" | "outline" | "danger" }> = {
   PENDING: { label: "待审核", variant: "warn" },
@@ -19,39 +27,37 @@ const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warn" 
   NO_SHOW: { label: "未到场", variant: "danger" },
 };
 
-export default async function MeRegistrationsPage() {
-  const viewer = await requireUser();
-  const regs = await db.registration.findMany({
-    where: { userId: viewer.id },
-    include: { event: { select: { slug: true, title: true, startAt: true, endAt: true, status: true } } },
-    orderBy: { event: { startAt: "desc" } },
-  });
+export default function MeRegistrationsPage() {
+  const [regs, setRegs] = React.useState<Registration[]>([]);
+
+  React.useEffect(() => {
+    api.users.myRegistrations().then(({ registrations }) => {
+      const sorted = [...registrations].sort(
+        (a: Registration, b: Registration) =>
+          new Date(b.start_at).getTime() - new Date(a.start_at).getTime(),
+      );
+      setRegs(sorted);
+    });
+  }, []);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <PageHeader
-        eyebrow="我的资料"
-        title="我的报名"
-        description="历史与即将到来的报名记录。"
-      />
+      <PageHeader eyebrow="我的资料" title="我的报名" description="历史与即将到来的报名记录。" />
       {regs.length === 0 ? (
         <EmptyState title="还没有报名过任何活动" />
       ) : (
         <div className="space-y-3">
           {regs.map((r) => {
-            const s = STATUS_LABEL[r.status];
+            const s = STATUS_LABEL[r.status] ?? { label: r.status, variant: "outline" as const };
             return (
               <Card key={r.id}>
                 <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
                   <div className="space-y-1">
-                    <Link
-                      href={`/events/${r.event.slug}`}
-                      className="text-sm font-medium hover:text-trans-blue-deep"
-                    >
-                      {r.event.title}
+                    <Link href={`/events/${r.slug}`} className="text-sm font-medium hover:text-trans-blue-deep">
+                      {r.title}
                     </Link>
                     <div className="text-xs text-ink-muted">
-                      {formatTimeRange(r.event.startAt, r.event.endAt)}
+                      {formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : null)}
                     </div>
                   </div>
                   <Badge variant={s.variant}>{s.label}</Badge>

@@ -1,13 +1,12 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { applicationSchema } from "@/lib/validators/auth";
-import { submitApplication } from "../sign-up/actions";
 
 export function ApplyForm() {
   const router = useRouter();
@@ -19,26 +18,24 @@ export function ApplyForm() {
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const input = {
-      email: String(fd.get("email") ?? "").trim(),
-      identity: String(fd.get("identity") ?? "").trim(),
-      motivation: String(fd.get("motivation") ?? "").trim(),
-      vouch: String(fd.get("vouch") ?? "").trim() || undefined,
-      agreeGuidelines: agree as true,
-    };
-    const parsed = applicationSchema.safeParse(input);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "请检查表单");
+    const email = String(fd.get("email") ?? "").trim();
+    const identity = String(fd.get("identity") ?? "").trim();
+    const motivation = String(fd.get("motivation") ?? "").trim();
+    const vouch = String(fd.get("vouch") ?? "").trim() || undefined;
+    if (!email || !identity || !motivation) {
+      setError("请检查表单");
       return;
     }
     setPending(true);
-    const res = await submitApplication(parsed.data);
-    if (!res.ok) {
-      setError(res.error);
+    try {
+      await api.applications.submit(email, { identity, motivation, vouch });
+      router.push("/apply/pending");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "提交失败，请稍后重试";
+      setError(msg);
+    } finally {
       setPending(false);
-      return;
     }
-    router.push("/apply/pending");
   }
 
   return (

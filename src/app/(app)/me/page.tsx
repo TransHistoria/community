@@ -1,6 +1,8 @@
+"use client";
+import * as React from "react";
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,45 +10,67 @@ import { Badge } from "@/components/ui/badge";
 import { formatTimeRange, relativeTime } from "@/lib/utils";
 import { TierBadge } from "@/components/user/TierBadge";
 
-export const metadata = { title: "我的概览" };
+type Registration = {
+  id: string;
+  status: string;
+  slug: string;
+  title: string;
+  start_at: string;
+  end_at?: string | null;
+  format: string;
+  city?: string | null;
+};
 
-export default async function MeOverviewPage() {
-  const viewer = await requireUser();
+export default function MeOverviewPage() {
+  const { user } = useAuth();
+  const [upcoming, setUpcoming] = React.useState<Registration[]>([]);
+  const [pendingReqs, setPendingReqs] = React.useState(0);
+  const [unreadNotif, setUnreadNotif] = React.useState(0);
 
-  const [user, upcoming, pendingReqs, unreadNotif] = await Promise.all([
-    db.user.findUnique({ where: { id: viewer.id } }),
-    db.registration.findMany({
-      where: {
-        userId: viewer.id,
-        status: { in: ["CONFIRMED", "WAITLIST", "PENDING"] },
-        event: { startAt: { gte: new Date() }, status: "PUBLISHED" },
-      },
-      include: { event: { select: { id: true, slug: true, title: true, startAt: true, endAt: true, format: true, city: true } } },
-      orderBy: { event: { startAt: "asc" } },
-      take: 5,
-    }),
-    db.contactRequest.count({
-      where: { targetId: viewer.id, status: "PENDING" },
-    }),
-    db.notification.count({
-      where: { userId: viewer.id, readAt: null, kind: { not: "INVITE_PRECHECK" } },
-    }),
-  ]);
+  React.useEffect(() => {
+    if (!user) return;
+    api.users.myRegistrations().then(({ registrations }) => {
+      const now = new Date();
+      const up = registrations.filter(
+        (r: Registration) =>
+          ["CONFIRMED", "WAITLIST", "PENDING"].includes(r.status) &&
+          r.start_at &&
+          new Date(r.start_at) >= now,
+      );
+      up.sort(
+        (a: Registration, b: Registration) =>
+          new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
+      );
+      setUpcoming(up.slice(0, 5));
+    });
+    api.users.myContactRequests().then(({ requests }) => {
+      const pending = requests.filter(
+        (r: { target_id: string; status: string }) =>
+          r.target_id === user.id && r.status === "PENDING",
+      );
+      setPendingReqs(pending.length);
+    });
+    api.notifications.list(true).then(({ notifications }) => {
+      setUnreadNotif(notifications.length);
+    });
+  }, [user]);
+
+  if (!user) return null;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="我的概览"
-        title={`你好，${user?.displayName ?? "朋友"}`}
+        title={`你好，${user.displayName}`}
         description="这里集中展示你即将参加的活动、待处理的请求和最新的通知。"
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           label="我的身份"
-          value={<TierBadge tier={user!.tier} />}
-          hint={`@${user!.handle}`}
-          href={`/u/${user!.handle}`}
+          value={<TierBadge tier={user.tier} />}
+          hint={`@${user.handle}`}
+          href={`/u/${user.handle}`}
         />
         <StatCard
           label="待处理联系请求"
@@ -65,10 +89,7 @@ export default async function MeOverviewPage() {
       <section className="space-y-3">
         <div className="flex items-end justify-between">
           <h2 className="font-serif text-h2 tracking-tight">即将到来的活动</h2>
-          <Link
-            href="/me/registrations"
-            className="text-sm text-trans-blue-deep hover:underline"
-          >
+          <Link href="/me/registrations" className="text-sm text-trans-blue-deep hover:underline">
             查看全部
           </Link>
         </div>
@@ -88,39 +109,28 @@ export default async function MeOverviewPage() {
                 <CardContent className="flex items-center justify-between gap-4 py-4">
                   <div className="space-y-1">
                     <div className="font-medium">
-                      <Link
-                        href={`/events/${r.event.slug}`}
-                        className="hover:text-trans-blue-deep"
-                      >
-                        {r.event.title}
+                      <Link href={`/events/${r.slug}`} className="hover:text-trans-blue-deep">
+                        {r.title}
                       </Link>
                     </div>
                     <div className="text-xs text-ink-muted flex items-center gap-2 flex-wrap">
-                      <span>{formatTimeRange(r.event.startAt, r.event.endAt)}</span>
+                      <span>{formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : null)}</span>
                       <span>·</span>
-                      <span>{relativeTime(r.event.startAt)}</span>
-                      {r.event.format === "OFFLINE" && r.event.city ? (
+                      <span>{relativeTime(new Date(r.start_at))}</span>
+                      {r.format === "OFFLINE" && r.city ? (
                         <>
                           <span>·</span>
-                          <span>{r.event.city}</span>
+                          <span>{r.city}</span>
                         </>
                       ) : null}
                     </div>
                   </div>
                   <Badge
                     variant={
-                      r.status === "CONFIRMED"
-                        ? "success"
-                        : r.status === "WAITLIST"
-                          ? "warn"
-                          : "outline"
+                      r.status === "CONFIRMED" ? "success" : r.status === "WAITLIST" ? "warn" : "outline"
                     }
                   >
-                    {r.status === "CONFIRMED"
-                      ? "已确认"
-                      : r.status === "WAITLIST"
-                        ? "候补"
-                        : "待审核"}
+                    {r.status === "CONFIRMED" ? "已确认" : r.status === "WAITLIST" ? "候补" : "待审核"}
                   </Badge>
                 </CardContent>
               </Card>
@@ -147,12 +157,8 @@ function StatCard({
     <Link href={href} className="block group">
       <Card className="transition-shadow group-hover:shadow-soft">
         <CardHeader className="pb-3">
-          <div className="text-xs uppercase tracking-wider text-ink-subtle">
-            {label}
-          </div>
-          <CardTitle className="text-h2 mt-1 flex items-center gap-2">
-            {value}
-          </CardTitle>
+          <div className="text-xs uppercase tracking-wider text-ink-subtle">{label}</div>
+          <CardTitle className="text-h2 mt-1 flex items-center gap-2">{value}</CardTitle>
         </CardHeader>
         {hint ? (
           <CardContent className="pt-0">
