@@ -2,7 +2,7 @@
   // Cloudflare Workers configuration for TransCommunity backend
   "name": "transcommunity",
   "main": "worker/src/index.ts",
-  "compatibility_date": "2024-12-18",
+  "compatibility_date": "2026-04-01",
   "compatibility_flags": ["nodejs_compat"],
 
   // Use the worker-specific tsconfig so path aliases (@/*) resolve correctly
@@ -46,5 +46,11 @@
     "EMAIL_FROM": "Trans Community <noreply@transhistoria.org>",
     "FRONTEND_URL": "https://transhistoria.github.io/community",
     "ADMIN_EMAILS": ""
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
   }
 }
