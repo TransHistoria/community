@@ -2,6 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import { emailSchema, signInTotpSchema } from "@/lib/validators/auth";
 
 export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = React.useState("");
   const [code, setCode] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -29,7 +31,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
     setPending(true);
     try {
       const res = await api.auth.loginTotp(parsed.data.email, parsed.data.code);
-      localStorage.setItem("tc_token", res.token);
+      login(res.token, res.user);
       router.push(callbackUrl);
       router.refresh();
     } catch {
