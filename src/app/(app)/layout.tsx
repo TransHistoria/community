@@ -8,16 +8,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isGuestAccessibleEventsList = pathname === "/events";
+  const isPublicEventsListPage = pathname === "/events";
+  const isPublicEventDetailPage = /^\/events\/[^/]+$/.test(pathname);
+  const isPublicUserProfilePage = /^\/u\/[^/]+$/.test(pathname);
+  const isGuestAccessiblePage =
+    isPublicEventsListPage ||
+    isPublicEventDetailPage ||
+    isPublicUserProfilePage;
 
   useEffect(() => {
-    if (!loading && !user && !isGuestAccessibleEventsList) {
+    if (!loading && !user && !isGuestAccessiblePage) {
       router.replace("/sign-in");
     }
-  }, [user, loading, router, isGuestAccessibleEventsList]);
+  }, [user, loading, router, isGuestAccessiblePage]);
 
-  if (loading && !isGuestAccessibleEventsList) return null;
-  if (!user && isGuestAccessibleEventsList) return <AppShell>{children}</AppShell>;
+  if (loading && !isGuestAccessiblePage) return null;
+  if (!user && isGuestAccessiblePage) return <AppShell>{children}</AppShell>;
   if (!user) return null;
   return <AppShell>{children}</AppShell>;
 }
