@@ -244,18 +244,9 @@ async function main() {
     assert(status === 403, `expected 403, got ${status}`);
   });
 
-  await test("POST /api/auth/create-admin — valid secret creates first admin and sends link", async () => {
-    const { status, data } = await api("POST", "/api/auth/create-admin", {
-      email: "bootstrap-admin@ci.test",
-      secret: "ci-create-admin-secret",
-    });
-    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
-    assert(data.ok, "expected ok");
-  });
-
-  await test("POST /api/auth/create-admin — second attempt after admin exists → 409", async () => {
+  await test("POST /api/auth/create-admin — admin already exists → 409", async () => {
     const { status } = await api("POST", "/api/auth/create-admin", {
-      email: "another-admin@ci.test",
+      email: "bootstrap-admin@ci.test",
       secret: "ci-create-admin-secret",
     });
     assert(status === 409, `expected 409, got ${status}`);

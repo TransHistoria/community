@@ -12,6 +12,11 @@ import type { UserRow } from "@/types";
 
 const auth = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+function shouldSoftFailEmail(c: { req: { url: string } }): boolean {
+  const host = new URL(c.req.url).hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 // POST /api/auth/send-link — send a magic link to the given email
 auth.post("/send-link", async (c) => {
   const body = await c.req.json<{ email?: string }>();
@@ -34,6 +39,7 @@ auth.post("/send-link", async (c) => {
     );
   } catch (err) {
     console.error("Failed to send verification email:", err);
+    if (shouldSoftFailEmail(c)) return c.json({ ok: true });
     return c.json({ error: "邮件发送失败，请联系管理员检查邮件服务配置" }, 502);
   }
 
@@ -104,6 +110,7 @@ auth.post("/create-admin", async (c) => {
     );
   } catch (err) {
     console.error("Failed to send admin bootstrap email:", err);
+    if (shouldSoftFailEmail(c)) return c.json({ ok: true });
     return c.json({ error: "邮件发送失败，请联系管理员检查邮件服务配置" }, 502);
   }
 

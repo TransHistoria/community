@@ -3,6 +3,7 @@
 // configured in the Cloudflare dashboard for the from address.
 
 import type { SendEmail } from "@cloudflare/workers-types";
+import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
 import {
   verificationEmailHtml,
@@ -45,8 +46,6 @@ async function send(
   // Extract from address for EmailMessage
   const fromAddr = match ? match[2]!.trim() : from.trim();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const EmailMessage = (globalThis as any).EmailMessage;
   const message = new EmailMessage(fromAddr, to, msg.asRaw());
   await binding.send(message);
 }
