@@ -33,7 +33,7 @@ app.get("/api/health", (c) => c.json({ ok: true, ts: new Date().toISOString() })
 
 // ---- Route mounts ----
 app.route("/api/auth", authRoutes);
-app.route("/api/events", eventsRoutes);
+app.route("/api/activities", eventsRoutes);
 app.route("/api/users", usersRoutes);
 app.route("/api/applications", applicationsRoutes);
 app.route("/api/notifications", notificationsRoutes);

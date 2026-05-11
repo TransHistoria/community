@@ -316,40 +316,40 @@ export const api = {
           .filter(([, v]) => v !== undefined && v !== "")
           .map(([k, v]) => [k, String(v)]),
       ).toString();
-      return get<{ events: Event[] }>(`/api/events${qs ? `?${qs}` : ""}`);
+      return get<{ events: Event[] }>(`/api/activities${qs ? `?${qs}` : ""}`);
     },
 
-    get: (slug: string) => get<{ event: Event }>(`/api/events/${slug}`),
+    get: (slug: string) => get<{ event: Event }>(`/api/activities/${slug}`),
 
-    create: (data: EventUpsertData) => post<{ ok: boolean; slug: string }>("/api/events", data),
+    create: (data: EventUpsertData) => post<{ ok: boolean; slug: string }>("/api/activities", data),
 
     update: (id: string, data: Partial<EventUpsertData>) =>
-      patch<{ ok: boolean }>(`/api/events/${id}`, data),
+      patch<{ ok: boolean }>(`/api/activities/${id}`, data),
 
-    cancel: (id: string) => del<{ ok: boolean }>(`/api/events/${id}`),
+    cancel: (id: string) => del<{ ok: boolean }>(`/api/activities/${id}`),
 
     // Registrations
     listRegistrations: (eventId: string) =>
-      get<{ registrations: Registration[] }>(`/api/events/${eventId}/registrations`),
+      get<{ registrations: Registration[] }>(`/api/activities/${eventId}/registrations`),
 
     register: (eventId: string, answers?: Record<string, unknown>) =>
-      post<{ ok: boolean; status: string }>(`/api/events/${eventId}/registrations`, { answers }),
+      post<{ ok: boolean; status: string }>(`/api/activities/${eventId}/registrations`, { answers }),
 
     decideRegistration: (regId: string, decision: string) =>
-      patch<{ ok: boolean }>(`/api/events/registrations/${regId}`, { decision }),
+      patch<{ ok: boolean }>(`/api/activities/registrations/${regId}`, { decision }),
 
     cancelRegistration: (regId: string) =>
-      del<{ ok: boolean }>(`/api/events/registrations/${regId}`),
+      del<{ ok: boolean }>(`/api/activities/registrations/${regId}`),
 
     // Comments
     listComments: (eventId: string) =>
-      get<{ comments: Comment[] }>(`/api/events/${eventId}/comments`),
+      get<{ comments: Comment[] }>(`/api/activities/${eventId}/comments`),
 
     postComment: (eventId: string, body: string, parentId?: string) =>
-      post<{ ok: boolean }>(`/api/events/${eventId}/comments`, { body, parentId }),
+      post<{ ok: boolean }>(`/api/activities/${eventId}/comments`, { body, parentId }),
 
     hideComment: (commentId: string) =>
-      patch<{ ok: boolean }>(`/api/events/comments/${commentId}/hide`),
+      patch<{ ok: boolean }>(`/api/activities/comments/${commentId}/hide`),
   },
 
   // Users

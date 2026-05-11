@@ -42,7 +42,7 @@ function viewerFrom(c: { get: (k: string) => string | undefined }) {
 
 // ---- Event CRUD ----
 
-// GET /api/events
+// GET /api/activities
 events.get("/", optionalAuth, async (c) => {
   const viewer = viewerFrom(c);
   const { category, format, city, q, page = "1" } = c.req.query();
@@ -92,7 +92,7 @@ events.get("/", optionalAuth, async (c) => {
   return c.json({ events: rows.results });
 });
 
-// GET /api/events/:slug
+// GET /api/activities/:slug
 events.get("/:slug", optionalAuth, async (c) => {
   const { slug } = c.req.param();
   const viewer = viewerFrom(c);
@@ -139,7 +139,7 @@ events.get("/:slug", optionalAuth, async (c) => {
   return c.json({ event: result });
 });
 
-// POST /api/events
+// POST /api/activities
 events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
   if (!canCreateEvent(viewer)) return c.json({ error: "无权创建" }, 403);
@@ -205,7 +205,7 @@ events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
   return c.json({ ok: true, slug });
 });
 
-// PATCH /api/events/:id
+// PATCH /api/activities/:id
 events.patch("/:id", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
@@ -272,7 +272,7 @@ events.patch("/:id", requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
-// DELETE /api/events/:id (cancel)
+// DELETE /api/activities/:id (cancel)
 events.delete("/:id", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
@@ -306,7 +306,7 @@ events.delete("/:id", requireAuth, async (c) => {
 
 // ---- Registrations ----
 
-// GET /api/events/:id/registrations (organizer only)
+// GET /api/activities/:id/registrations (organizer only)
 events.get("/:id/registrations", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
@@ -329,7 +329,7 @@ events.get("/:id/registrations", requireAuth, async (c) => {
   return c.json({ registrations: regs.results });
 });
 
-// POST /api/events/:id/registrations
+// POST /api/activities/:id/registrations
 events.post("/:id/registrations", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
@@ -485,7 +485,7 @@ events.delete("/registrations/:regId", requireAuth, async (c) => {
 
 // ---- Comments ----
 
-// GET /api/events/:id/comments
+// GET /api/activities/:id/comments
 events.get("/:id/comments", optionalAuth, async (c) => {
   const viewer = viewerFrom(c);
   const { id } = c.req.param();
@@ -502,7 +502,7 @@ events.get("/:id/comments", optionalAuth, async (c) => {
   return c.json({ comments: rows.results });
 });
 
-// POST /api/events/:id/comments
+// POST /api/activities/:id/comments
 events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
