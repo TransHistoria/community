@@ -24,7 +24,7 @@ export function InviteSignUpForm() {
     setPending(true);
     try {
       await api.auth.verifyInvite(parsed.data.email, parsed.data.code);
-      await api.auth.sendLink(parsed.data.email, "/me/profile?onboarding=1");
+      await api.auth.sendLink(parsed.data.email);
       setSent(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "校验失败，请检查邀请码";

@@ -38,7 +38,7 @@ function CommentBody({
   viewerId: string;
   organizerId: string;
   isAdmin: boolean;
-  onHidden: (id: string) => void;
+  onHidden: () => void;
 }) {
   const canHide = isAdmin || organizerId === viewerId;
   return (
@@ -73,8 +73,8 @@ export function CommentSection({ eventId }: { eventId: string }) {
   const [comments, setComments] = React.useState<ApiComment[]>([]);
 
   function loadComments() {
-    api.events.listComments(eventId).then(({ comments: cs }) => {
-      setComments(cs as ApiComment[]);
+    api.events.listComments(eventId).then((res: { comments: unknown[] }) => {
+      setComments(res.comments as ApiComment[]);
     });
   }
 
@@ -137,13 +137,3 @@ export function CommentSection({ eventId }: { eventId: string }) {
     </section>
   );
 }
-import { canComment } from "@/lib/access";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CommentForm } from "./CommentForm";
-import { HideCommentButton } from "./HideCommentButton";
-import { ReportButton } from "@/components/moderation/ReportButton";
-import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
-import { relativeTime } from "@/lib/utils";
-import Link from "next/link";
-

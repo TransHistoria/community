@@ -22,7 +22,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
     }
     setPending(true);
     try {
-      await api.auth.sendLink(parsed.data, callbackUrl);
+      await api.auth.sendLink(parsed.data);
       setSent(true);
     } catch {
       setError("发送失败，请稍后重试。");

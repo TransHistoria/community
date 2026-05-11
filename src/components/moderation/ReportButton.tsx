@@ -44,7 +44,7 @@ export function ReportButton({
       setOpen(false);
       setReason("");
     } else {
-      toast({ title: "提交失败", description: res.error, variant: "danger" });
+      toast({ title: "提交失败", variant: "danger" });
     }
   }
 

@@ -29,9 +29,9 @@ export default function MeOverviewPage() {
 
   React.useEffect(() => {
     if (!user) return;
-    api.users.myRegistrations().then(({ registrations }) => {
+    api.users.myRegistrations().then((res: { registrations: unknown[] }) => {
       const now = new Date();
-      const up = registrations.filter(
+      const up = (res.registrations as Registration[]).filter(
         (r: Registration) =>
           ["CONFIRMED", "WAITLIST", "PENDING"].includes(r.status) &&
           r.start_at &&
@@ -43,15 +43,15 @@ export default function MeOverviewPage() {
       );
       setUpcoming(up.slice(0, 5));
     });
-    api.users.myContactRequests().then(({ requests }) => {
-      const pending = requests.filter(
+    api.users.myContactRequests().then((res: { requests: unknown[] }) => {
+      const pending = (res.requests as { target_id: string; status: string }[]).filter(
         (r: { target_id: string; status: string }) =>
           r.target_id === user.id && r.status === "PENDING",
       );
       setPendingReqs(pending.length);
     });
-    api.notifications.list(true).then(({ notifications }) => {
-      setUnreadNotif(notifications.length);
+    api.notifications.list(true).then((res: { notifications: unknown[] }) => {
+      setUnreadNotif(res.notifications.length);
     });
   }, [user]);
 
@@ -114,7 +114,7 @@ export default function MeOverviewPage() {
                       </Link>
                     </div>
                     <div className="text-xs text-ink-muted flex items-center gap-2 flex-wrap">
-                      <span>{formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : null)}</span>
+                      <span>{formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : new Date(r.start_at))}</span>
                       <span>·</span>
                       <span>{relativeTime(new Date(r.start_at))}</span>
                       {r.format === "OFFLINE" && r.city ? (

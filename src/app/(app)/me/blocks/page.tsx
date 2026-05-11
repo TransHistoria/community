@@ -19,7 +19,7 @@ export default function MeBlocksPage() {
   const [blocks, setBlocks] = React.useState<BlockEntry[]>([]);
 
   const load = React.useCallback(() => {
-    api.users.myBlocks().then(({ blocks: b }) => setBlocks(b as BlockEntry[]));
+    api.users.myBlocks().then((res: { blocks: unknown[] }) => setBlocks(res.blocks as BlockEntry[]));
   }, []);
 
   React.useEffect(() => { load(); }, [load]);

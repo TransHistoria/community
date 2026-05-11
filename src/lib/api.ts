@@ -216,6 +216,26 @@ export interface UserProfile {
 
 // ---- API namespaces ----
 
+type EventUpsertData = {
+  title: string;
+  description: string;
+  category: string;
+  format: string;
+  coverUrl?: string;
+  startAt: string | Date;
+  endAt: string | Date;
+  timezone?: string;
+  city?: string;
+  preciseAddr?: string;
+  onlineUrl?: string;
+  capacity?: number;
+  requireApproval?: boolean;
+  registrationOpensAt?: string | Date | null;
+  registrationClosesAt?: string | Date | null;
+  customQuestions?: unknown[];
+  visibility?: string;
+};
+
 export const api = {
   // Auth
   auth: {
@@ -255,27 +275,9 @@ export const api = {
 
     get: (slug: string) => get<{ event: Event }>(`/api/events/${slug}`),
 
-    create: (data: {
-      title: string;
-      description: string;
-      category: string;
-      format: string;
-      coverUrl?: string;
-      startAt: string;
-      endAt: string;
-      timezone?: string;
-      city?: string;
-      preciseAddr?: string;
-      onlineUrl?: string;
-      capacity?: number;
-      requireApproval?: boolean;
-      registrationOpensAt?: string;
-      registrationClosesAt?: string;
-      customQuestions?: unknown[];
-      visibility?: string;
-    }) => post<{ ok: boolean; slug: string }>("/api/events", data),
+    create: (data: EventUpsertData) => post<{ ok: boolean; slug: string }>("/api/events", data),
 
-    update: (id: string, data: Partial<Parameters<typeof api.events.create>[0]>) =>
+    update: (id: string, data: Partial<EventUpsertData>) =>
       patch<{ ok: boolean }>(`/api/events/${id}`, data),
 
     cancel: (id: string) => del<{ ok: boolean }>(`/api/events/${id}`),

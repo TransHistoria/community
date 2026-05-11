@@ -30,7 +30,7 @@ export default function MeInvitesPage() {
   const [codes, setCodes] = React.useState<InviteCode[]>([]);
 
   const loadCodes = React.useCallback(() => {
-    api.users.myInvites().then(({ invites }) => setCodes(invites as InviteCode[]));
+    api.users.myInvites().then((res: { invites: unknown[] }) => setCodes(res.invites as InviteCode[]));
   }, []);
 
   React.useEffect(() => { loadCodes(); }, [loadCodes]);

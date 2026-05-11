@@ -27,7 +27,7 @@ function EventsPageInner() {
   React.useEffect(() => {
     api.events
       .list({ category: cat, format: fmt, city, q })
-      .then(({ events: evs }) => setEvents(evs));
+      .then((res: { events: unknown[] }) => setEvents(res.events));
   }, [cat, fmt, city, q]);
 
   return (
@@ -75,7 +75,7 @@ function EventsPageInner() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(events as { id: string }[]).map((e) => (
-            <EventCard key={e.id} event={e} />
+            <EventCard key={e.id} event={e as any} />
           ))}
         </div>
       )}

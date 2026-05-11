@@ -8,7 +8,7 @@ export default function MeContactsPage() {
   const [contacts, setContacts] = React.useState<unknown[]>([]);
 
   const load = React.useCallback(() => {
-    api.users.myContacts().then(({ contacts: c }) => setContacts(c));
+    api.users.myContacts().then((res: { contacts: unknown[] }) => setContacts(res.contacts));
   }, []);
 
   React.useEffect(() => { load(); }, [load]);

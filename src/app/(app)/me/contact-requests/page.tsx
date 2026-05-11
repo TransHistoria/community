@@ -32,8 +32,8 @@ export default function ContactRequestsPage() {
   const [requests, setRequests] = React.useState<ContactRequest[]>([]);
 
   const load = React.useCallback(() => {
-    api.users.myContactRequests().then(({ requests: reqs }) =>
-      setRequests(reqs as ContactRequest[]),
+    api.users.myContactRequests().then((res: { requests: unknown[] }) =>
+      setRequests(res.requests as ContactRequest[]),
     );
   }, []);
 

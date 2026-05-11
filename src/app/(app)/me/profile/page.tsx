@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { api } from "@/lib/api";
+import { api, type SessionUser } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProfileForm } from "./ProfileForm";
@@ -17,7 +17,7 @@ export default function MeProfilePage() {
   } | null>(null);
 
   React.useEffect(() => {
-    api.auth.me().then((u) => {
+    api.auth.me().then((u: SessionUser) => {
       setInitial({
         handle: u.handle,
         displayName: u.displayName,

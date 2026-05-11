@@ -1,18 +1,17 @@
 import { PageHeader } from "@/components/ui/page-header";
-import { env } from "@/lib/env";
 
 export default function AboutPage() {
   return (
     <article className="max-w-3xl mx-auto space-y-12">
       <PageHeader
         eyebrow="关于平台"
-        title={`关于 ${env.app.name}`}
+        title="关于 跨性别社群"
         description="一个为跨性别社群打造的私域空间。这里记录我们的设计原则、社区守则和隐私承诺。"
       />
 
       <section className="prose-trans space-y-4">
         <p>
-          {env.app.name} 是一个由社群成员发起、面向跨性别社群的私域活动平台。
+          跨性别社群是一个由社群成员发起、面向跨性别社群的私域活动平台。
           我们不追求增长、不追求曝光，只希望为社群里愿意组织和参与活动的成员提供一个相对安全的空间。
         </p>
         <p>

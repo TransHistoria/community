@@ -32,9 +32,9 @@ export default function NotificationsPage() {
   const [notifs, setNotifs] = React.useState<Notification[]>([]);
 
   React.useEffect(() => {
-    api.notifications.list().then(({ notifications }) => {
-      setNotifs(notifications as Notification[]);
-      const unread = (notifications as Notification[])
+    api.notifications.list().then((res: { notifications: unknown[] }) => {
+      setNotifs(res.notifications as Notification[]);
+      const unread = (res.notifications as Notification[])
         .filter((n) => !n.read_at)
         .map((n) => n.id);
       if (unread.length > 0) {

@@ -31,8 +31,8 @@ export default function MeRegistrationsPage() {
   const [regs, setRegs] = React.useState<Registration[]>([]);
 
   React.useEffect(() => {
-    api.users.myRegistrations().then(({ registrations }) => {
-      const sorted = [...registrations].sort(
+    api.users.myRegistrations().then((res: { registrations: unknown[] }) => {
+      const sorted = [...(res.registrations as Registration[])].sort(
         (a: Registration, b: Registration) =>
           new Date(b.start_at).getTime() - new Date(a.start_at).getTime(),
       );
@@ -57,7 +57,7 @@ export default function MeRegistrationsPage() {
                       {r.title}
                     </Link>
                     <div className="text-xs text-ink-muted">
-                      {formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : null)}
+                      {formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : new Date(r.start_at))}
                     </div>
                   </div>
                   <Badge variant={s.variant}>{s.label}</Badge>

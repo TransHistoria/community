@@ -25,8 +25,11 @@ files.post("/", requireAuth, async (c) => {
     return c.json({ error: "请求必须为 multipart/form-data" }, 400);
   }
 
-  const file = form.get("file");
-  if (!(file instanceof File)) return c.json({ error: "缺少 file 字段" }, 400);
+  const fileEntry = form.get("file");
+  if (!fileEntry || typeof fileEntry === "string") {
+    return c.json({ error: "缺少 file 字段" }, 400);
+  }
+  const file = fileEntry as Blob;
 
   const ext = ALLOWED_TYPES[file.type];
   if (!ext) return c.json({ error: "仅支持 JPG、PNG、WebP、GIF" }, 400);
@@ -46,7 +49,7 @@ files.post("/", requireAuth, async (c) => {
 // GET /api/files/* — serve a file from R2
 files.get("/*", async (c) => {
   // Strip the leading "/" from the sub-path to get the R2 object key
-  const key = c.req.path.replace(/^\//, "");
+  const key = c.req.param("*") ?? "";
   if (!key) return c.json({ error: "Not found" }, 404);
 
   const obj = await c.env.FILES.get(key);
