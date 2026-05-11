@@ -65,8 +65,7 @@ export async function sendTotpSetupEmail(
   args: { to: string; secret: string; otpauthUrl: string },
 ): Promise<void> {
   const qrAscii = await toQrString(args.otpauthUrl, {
-    type: "terminal",
-    small: true,
+    type: "utf8",
   });
   const { html, text } = totpSetupEmailHtml({
     appName: p.appName,

@@ -59,15 +59,19 @@ export function totpSetupEmailHtml(params: {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+  const prettySecret = params.secret.replace(/(.{4})/g, "$1 ").trim();
   const html = baseLayout(
     params.appName,
     `<p>你好，</p>
 <p>请使用认证器应用（例如 Google Authenticator / Microsoft Authenticator）扫描二维码并保存密钥。</p>
+<p><strong>手动输入密钥：</strong></p>
+<p style="font-size: 18px; letter-spacing: 0.12em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f6f6f6; padding: 12px 14px; border-radius: 8px;">${prettySecret}</p>
+<p>如果二维码显示异常，请直接在认证器中手动输入上面的密钥。</p>
 <pre style="font-size: 8px; line-height: 1; background: #111; color: #f7f7f7; padding: 12px; border-radius: 8px; overflow-x: auto;">${escapedAscii}</pre>
-<p>密钥：<code style="font-size: 14px;">${params.secret}</code></p>
-<p>如果无法扫码，可手动添加并填写上述密钥。</p>`,
+<p>手动导入链接：</p>
+<p style="word-break: break-all;"><code style="font-size: 12px;">${params.otpauthUrl}</code></p>`,
   );
-  const text = `你的 ${params.appName} TOTP 初始化信息：\n\n${params.qrAscii}\n\n密钥：${params.secret}\n\n如需手动导入，可使用 otpauth URL：\n${params.otpauthUrl}`;
+  const text = `你的 ${params.appName} TOTP 初始化信息：\n\n手动输入密钥：${prettySecret}\n\n如果二维码显示异常，请直接手动输入上面的密钥。\n\n${params.qrAscii}\n\n手动导入链接：\n${params.otpauthUrl}`;
   return { html, text };
 }
 

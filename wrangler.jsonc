@@ -44,7 +44,7 @@
     "APP_NAME": "跨性别社群",
     "APP_LOCALE": "zh-CN",
     "EMAIL_FROM": "Trans Community <noreply@transhistoria.org>",
-    "FRONTEND_URL": "https://transhistoria.github.io/community",
+    "FRONTEND_URL": "https://community.transhistoria.org",
     "ADMIN_EMAILS": ""
   },
   "observability": {
