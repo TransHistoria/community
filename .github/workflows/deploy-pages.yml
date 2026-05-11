@@ -7,6 +7,7 @@ on:
       - "src/**"
       - "public/**"
       - "next.config.mjs"
+      - "tsconfig.json"
       - "package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/deploy-pages.yml"
