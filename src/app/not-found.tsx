@@ -4,14 +4,16 @@
 // to the app root.  The inline recovery script in the root layout body then
 // calls history.replaceState before Next.js initialises, so the router
 // sees the correct URL during initial hydration — no RSC payload fetch is
-// triggered and the loop cannot happen.
+// triggered.
 //
-// The window.__SPA_RECOVERED guard prevents this script from running when
-// Next.js renders the not-found component client-side (e.g. after a failed
-// navigation), which would otherwise re-trigger the redirect and loop.
+// The window.__SPA_RECOVERED guard prevents an infinite loop: it stores the
+// path that was recovered, and the redirect only fires when the current path
+// differs from the recovered path.  This allows navigating to a different
+// non-pre-generated route after a recovery (e.g. clicking between event
+// pages) while still preventing the redirect from looping on the same path.
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-const redirectScript = `(function(){try{if(window.__SPA_RECOVERED)return;var p=location.pathname+location.search+location.hash;location.replace(${JSON.stringify(basePath+"/")}+"?_spa="+encodeURIComponent(p));}catch(e){}})();`;
+const redirectScript = `(function(){try{var p=location.pathname+location.search+location.hash;if(window.__SPA_RECOVERED===p)return;location.replace(${JSON.stringify(basePath+"/")}+"?_spa="+encodeURIComponent(p));}catch(e){}})();`;
 
 export const metadata = { title: "页面不存在" };
 

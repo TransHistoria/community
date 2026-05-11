@@ -49,7 +49,7 @@ export default function RootLayout({
             so the not-found script knows it is running inside the app rather
             than as a raw GitHub Pages 404, then calls history.replaceState so
             the router initialises with the correct URL (no RSC fetch needed). */}
-        <script dangerouslySetInnerHTML={{ __html: "(function(){var p=new URLSearchParams(location.search).get('_spa');if(p){window.__SPA_RECOVERED=true;history.replaceState(null,'',p);}})();" }} />
+        <script dangerouslySetInnerHTML={{ __html: "(function(){var p=new URLSearchParams(location.search).get('_spa');if(p){window.__SPA_RECOVERED=p;history.replaceState(null,'',p);}})();" }} />
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
