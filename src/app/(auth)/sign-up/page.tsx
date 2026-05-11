@@ -32,6 +32,7 @@ export default function SignUpPage() {
           <TabsContent value="invite" className="space-y-4">
             <p className="text-sm text-ink-muted">
               使用社群成员发给你的邀请码加入。完成注册后会立即获得已认证身份。
+              首次部署时，也可以输入 CREATE_ADMIN 密钥来初始化首个管理员账号。
             </p>
             <InviteSignUpForm />
           </TabsContent>

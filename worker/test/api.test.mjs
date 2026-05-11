@@ -317,6 +317,14 @@ async function main() {
     assert(status === 400, `expected 400, got ${status}`);
   });
 
+  await test("POST /api/auth/verify-invite — CREATE_ADMIN code when admin exists → 409", async () => {
+    const { status } = await api("POST", "/api/auth/verify-invite", {
+      email: "bootstrap-admin@ci.test",
+      code: "ci-create-admin-secret",
+    });
+    assert(status === 409, `expected 409, got ${status}`);
+  });
+
   await test("POST /api/auth/verify-invite — seed code → 200; invite code still present in DB", async () => {
     const { status, data } = await api("POST", "/api/auth/verify-invite", {
       email: "new@ci.test",

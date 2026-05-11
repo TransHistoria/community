@@ -223,8 +223,41 @@ auth.post("/verify", async (c) => {
 auth.post("/verify-invite", async (c) => {
   const body = await c.req.json<{ email?: string; code?: string }>();
   const email = (body.email ?? "").trim().toLowerCase();
-  const code = (body.code ?? "").trim().toUpperCase();
-  if (!email || !code) return c.json({ error: "参数缺失" }, 400);
+  const rawCode = (body.code ?? "").trim();
+  if (!email || !rawCode) return c.json({ error: "参数缺失" }, 400);
+
+  const createAdminSecret = (c.env.CREATE_ADMIN ?? "").trim();
+  if (createAdminSecret && rawCode === createAdminSecret) {
+    const existingAdmin = await c.env.DB.prepare(
+      "SELECT id FROM users WHERE tier = 'ADMIN' LIMIT 1",
+    ).first<{ id: string }>();
+    if (existingAdmin) return c.json({ error: "管理员已初始化" }, 409);
+
+    let user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
+      .bind(email)
+      .first<UserRow>();
+
+    if (!user) {
+      const baseHandle = email.split("@")[0]!.replace(/[^a-z0-9]/g, "_");
+      const handle = await ensureUniqueHandle(c.env.DB, baseHandle, "");
+      await c.env.DB.prepare(
+        `INSERT INTO users (id, email, handle, display_name, tier, status, email_verified_at)
+         VALUES (?, ?, ?, ?, 'ADMIN', 'ACTIVE', datetime('now'))`,
+      )
+        .bind(newId(), email, handle, handle)
+        .run();
+    } else {
+      await c.env.DB.prepare(
+        "UPDATE users SET tier = 'ADMIN', status = 'ACTIVE', updated_at = datetime('now') WHERE id = ?",
+      )
+        .bind(user.id)
+        .run();
+    }
+
+    return c.json({ ok: true });
+  }
+
+  const code = rawCode.toUpperCase();
 
   const inv = await c.env.DB.prepare(
     "SELECT * FROM invite_codes WHERE code = ?",
