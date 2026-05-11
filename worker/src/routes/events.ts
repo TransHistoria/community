@@ -399,9 +399,9 @@ events.post("/:id/registrations", requireAuth, requireTier("VERIFIED"), async (c
   ]);
 
   // Send email
-  const userRow = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
+  const userRow = await c.env.DB.prepare("SELECT email, tier FROM users WHERE id = ?")
     .bind(viewer.id)
-    .first<{ email: string }>();
+    .first<{ email: string; tier: string }>();
   if (userRow?.email) {
     sendRegistrationStatusEmail(
       { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
@@ -410,6 +410,7 @@ events.post("/:id/registrations", requireAuth, requireTier("VERIFIED"), async (c
         eventTitle: event.title,
         eventUrl: `${c.env.FRONTEND_URL}/events/${event.slug}`,
         status: status as "CONFIRMED" | "WAITLIST" | "DECLINED" | "PENDING",
+        userTier: userRow.tier,
       },
     ).catch(() => {});
   }
@@ -445,9 +446,9 @@ events.patch("/registrations/:regId", requireAuth, async (c) => {
     .run();
 
   if (["CONFIRMED", "WAITLIST", "DECLINED"].includes(decision)) {
-    const userRow = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
-      .bind(reg.user_id)
-      .first<{ email: string }>();
+      const userRow = await c.env.DB.prepare("SELECT email, tier FROM users WHERE id = ?")
+        .bind(reg.user_id)
+        .first<{ email: string; tier: string }>();
     if (userRow?.email) {
       sendRegistrationStatusEmail(
         { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
@@ -456,6 +457,7 @@ events.patch("/registrations/:regId", requireAuth, async (c) => {
           eventTitle: reg.title,
           eventUrl: `${c.env.FRONTEND_URL}/events/${reg.slug}`,
           status: decision as "CONFIRMED" | "WAITLIST" | "DECLINED" | "PENDING",
+          userTier: userRow.tier,
         },
       ).catch(() => {});
     }

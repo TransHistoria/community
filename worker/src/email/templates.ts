@@ -5,6 +5,29 @@ export interface TemplateVars {
   appName: string;
 }
 
+function tierLabel(tier?: string): string {
+  switch ((tier ?? "").toUpperCase()) {
+    case "ADMIN":
+      return "ADMIN";
+    case "TRUSTED":
+      return "TRUSTED";
+    case "VERIFIED":
+      return "VERIFIED";
+    case "UNVERIFIED":
+      return "UNVERIFIED";
+    default:
+      return "UNVERIFIED";
+  }
+}
+
+function tierHtml(tier?: string): string {
+  return `<p style="font-size:13px;color:#666;">当前账号等级：<strong>${tierLabel(tier)}</strong></p>`;
+}
+
+function tierText(tier?: string): string {
+  return `当前账号等级：${tierLabel(tier)}`;
+}
+
 function baseLayout(appName: string, content: string): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -53,12 +76,19 @@ export function totpSetupEmailHtml(params: {
   appName: string;
   secret: string;
   otpauthUrl: string;
+  qrSvg?: string;
+  userTier?: string;
 }): { html: string; text: string } {
   const prettySecret = params.secret.replace(/(.{4})/g, "$1 ").trim();
+  const qrSection = params.qrSvg
+    ? `<p><strong>扫码快速添加（推荐）</strong></p>
+<div style="display:flex;justify-content:center;margin:8px 0 16px;padding:12px;background:#fff;border:1px solid #eee;border-radius:8px;">${params.qrSvg}</div>`
+    : "";
   const html = baseLayout(
     params.appName,
     `<p>你好，</p>
 <p>你的 <strong>${params.appName}</strong> 账号已配置完成。本平台不使用密码，<strong>认证器动态验证码（TOTP）是唯一的登录凭证</strong>，请按以下步骤完成设置。</p>
+${tierHtml(params.userTier)}
 <p><strong>第一步：安装认证器应用</strong></p>
 <p>在手机上安装以下任意一款应用：</p>
 <ul style="margin: 0 0 16px; padding-left: 20px; line-height: 1.9; font-size: 15px;">
@@ -68,6 +98,7 @@ export function totpSetupEmailHtml(params: {
   <li>任意支持 TOTP（RFC 6238）的认证器</li>
 </ul>
 <p><strong>第二步：添加账号</strong></p>
+${qrSection}
 <p>打开认证器应用，选择「添加账号」→「手动输入」，填写以下密钥：</p>
 <p style="font-size: 18px; letter-spacing: 0.12em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f6f6f6; padding: 12px 14px; border-radius: 8px;">${prettySecret}</p>
 <p style="font-size: 13px; color: #666;">或者在认证器中粘贴以下链接手动导入：<br/><code style="font-size: 11px; word-break: break-all;">${params.otpauthUrl}</code></p>
@@ -75,20 +106,30 @@ export function totpSetupEmailHtml(params: {
 <p>设置完成后，打开 <strong>${params.appName}</strong>，输入邮箱和认证器应用上显示的 6 位数字即可登录。验证码每 30 秒刷新一次，请在过期前输入。</p>
 <p style="color: #c0392b; font-size: 13px;">⚠️ 请妥善保存上方密钥。若手机丢失或认证器数据被清除，你将需要此密钥来恢复访问。</p>`,
   );
-  const text = `你的 ${params.appName} 账号已配置完成。本平台不使用密码，认证器动态验证码（TOTP）是唯一的登录凭证，请按步骤完成设置。\n\n【第一步】安装认证器应用\n推荐：Google Authenticator、Microsoft Authenticator、Aegis（Android 开源）\n\n【第二步】在认证器中添加账号 → 手动输入密钥：\n${prettySecret}\n\n手动导入链接：${params.otpauthUrl}\n\n【第三步】登录\n打开 ${params.appName}，输入邮箱和认证器显示的 6 位数字即可登录。验证码每 30 秒刷新，请在过期前输入。\n\n⚠️ 请妥善保存密钥，丢失设备时需要它来恢复访问。`;
+  const text = `你的 ${params.appName} 账号已配置完成。本平台不使用密码，认证器动态验证码（TOTP）是唯一的登录凭证，请按步骤完成设置。\n${tierText(params.userTier)}\n\n【第一步】安装认证器应用\n推荐：Google Authenticator、Microsoft Authenticator、Aegis（Android 开源）\n\n【第二步】在认证器中添加账号 → 手动输入密钥：\n${prettySecret}\n\n手动导入链接：${params.otpauthUrl}\n\n【第三步】登录\n打开 ${params.appName}，输入邮箱和认证器显示的 6 位数字即可登录。验证码每 30 秒刷新，请在过期前输入。\n\n⚠️ 请妥善保存密钥，丢失设备时需要它来恢复访问。`;
   return { html, text };
 }
 
 export function applicationApprovedEmailHtml(params: {
   appName: string;
+  signInUrl: string;
+  qrSvg?: string;
+  userTier?: string;
 }): { html: string; text: string } {
+  const qrSection = params.qrSvg
+    ? `<p>你也可以扫码快速打开登录页面：</p>
+<div style="display:flex;justify-content:center;margin:8px 0 16px;padding:12px;background:#fff;border:1px solid #eee;border-radius:8px;">${params.qrSvg}</div>`
+    : "";
   const html = baseLayout(
     params.appName,
     `<p>你好，</p>
 <p>恭喜！你在 <strong>${params.appName}</strong> 的入站申请已通过审核。</p>
-<p>现在你可以使用申请时填写的邮箱登录，探索社群活动了。</p>`,
+<p>现在你可以使用申请时填写的邮箱登录，探索社群活动了。</p>
+${tierHtml(params.userTier)}
+<a href="${params.signInUrl}" class="btn">前往登录</a>
+${qrSection}`,
   );
-  const text = `你在 ${params.appName} 的入站申请已通过审核。请使用申请邮箱登录。`;
+  const text = `你在 ${params.appName} 的入站申请已通过审核。请使用申请邮箱登录：${params.signInUrl}\n${tierText(params.userTier)}`;
   return { html, text };
 }
 
@@ -124,15 +165,23 @@ export function registrationStatusEmailHtml(params: {
   eventUrl: string;
   status: RegStatus;
   appName: string;
+  qrSvg?: string;
+  userTier?: string;
 }): { html: string; text: string } {
   const label = REG_STATUS_LABEL[params.status] ?? params.status;
+  const qrSection = params.qrSvg
+    ? `<p>扫码查看活动详情：</p>
+<div style="display:flex;justify-content:center;margin:8px 0 16px;padding:12px;background:#fff;border:1px solid #eee;border-radius:8px;">${params.qrSvg}</div>`
+    : "";
   const html = baseLayout(
     params.appName,
     `<p>你好，</p>
 <p>你在活动「<strong>${params.eventTitle}</strong>」的报名状态已更新为：<strong>${label}</strong>。</p>
-<a href="${params.eventUrl}" class="btn">查看活动详情</a>`,
+${tierHtml(params.userTier)}
+<a href="${params.eventUrl}" class="btn">查看活动详情</a>
+${qrSection}`,
   );
-  const text = `你在「${params.eventTitle}」的报名状态：${label}\n查看详情：${params.eventUrl}`;
+  const text = `你在「${params.eventTitle}」的报名状态：${label}\n${tierText(params.userTier)}\n查看详情：${params.eventUrl}`;
   return { html, text };
 }
 

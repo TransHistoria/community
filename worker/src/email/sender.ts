@@ -5,6 +5,7 @@
 import type { SendEmail } from "@cloudflare/workers-types";
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
+import QRCode from "qrcode";
 import {
   verificationEmailHtml,
   totpSetupEmailHtml,
@@ -21,6 +22,20 @@ interface SendParams {
   sendEmail: SendEmail;
   from: string;
   appName: string;
+}
+
+async function generateQrSvg(data: string): Promise<string | undefined> {
+  try {
+    return await QRCode.toString(data, {
+      type: "svg",
+      width: 180,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+  } catch (err) {
+    console.error("Failed to generate QR SVG:", err);
+    return undefined;
+  }
 }
 
 async function send(
@@ -61,21 +76,30 @@ export async function sendVerificationEmail(
 
 export async function sendTotpSetupEmail(
   p: SendParams,
-  args: { to: string; secret: string; otpauthUrl: string },
+  args: { to: string; secret: string; otpauthUrl: string; userTier?: string },
 ): Promise<void> {
+  const qrSvg = await generateQrSvg(args.otpauthUrl);
   const { html, text } = totpSetupEmailHtml({
     appName: p.appName,
     secret: args.secret,
     otpauthUrl: args.otpauthUrl,
+    qrSvg,
+    userTier: args.userTier,
   });
   await send(p.sendEmail, p.from, args.to, `${p.appName} TOTP 初始化`, html, text);
 }
 
 export async function sendApplicationApprovedEmail(
   p: SendParams,
-  args: { to: string },
+  args: { to: string; signInUrl: string; userTier?: string },
 ): Promise<void> {
-  const { html, text } = applicationApprovedEmailHtml({ appName: p.appName });
+  const qrSvg = await generateQrSvg(args.signInUrl);
+  const { html, text } = applicationApprovedEmailHtml({
+    appName: p.appName,
+    signInUrl: args.signInUrl,
+    qrSvg,
+    userTier: args.userTier,
+  });
   await send(
     p.sendEmail,
     p.from,
@@ -111,13 +135,17 @@ export async function sendRegistrationStatusEmail(
     eventTitle: string;
     eventUrl: string;
     status: RegStatus;
+    userTier?: string;
   },
 ): Promise<void> {
+  const qrSvg = await generateQrSvg(args.eventUrl);
   const { html, text } = registrationStatusEmailHtml({
     eventTitle: args.eventTitle,
     eventUrl: args.eventUrl,
     status: args.status,
     appName: p.appName,
+    qrSvg,
+    userTier: args.userTier,
   });
   await send(
     p.sendEmail,

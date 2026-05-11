@@ -118,7 +118,7 @@ auth.post("/register-totp", async (c) => {
         from: c.env.EMAIL_FROM,
         appName: c.env.APP_NAME,
       },
-      { to: email, secret, otpauthUrl },
+      { to: email, secret, otpauthUrl, userTier: user.tier },
     );
   } catch (err) {
     console.error("Failed to send TOTP setup email:", err);

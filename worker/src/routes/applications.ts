@@ -7,6 +7,7 @@ import { requireAuth, requireTier } from "@/middleware/auth";
 import { buildOtpAuthUrl, generateTotpSecret } from "@/auth/totp";
 import { newId } from "@/lib/utils";
 import {
+  sendApplicationApprovedEmail,
   sendTotpSetupEmail,
   sendApplicationRejectedEmail,
 } from "@/email/sender";
@@ -162,9 +163,18 @@ applications.patch("/:id", requireAuth, requireTier("ADMIN"), async (c) => {
     }
 
     c.executionCtx.waitUntil(
+      sendApplicationApprovedEmail(
+        { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+        { to: app.email, signInUrl: `${c.env.FRONTEND_URL}/sign-in`, userTier: user.tier },
+      ).catch((err) => {
+        console.error("Failed to send application approved email:", err);
+      }),
+    );
+
+    c.executionCtx.waitUntil(
       sendTotpSetupEmail(
         { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-        { to: app.email, secret, otpauthUrl },
+        { to: app.email, secret, otpauthUrl, userTier: user.tier },
       ).catch((err) => {
         console.error("Failed to send TOTP setup email on application approval:", err);
       }),
