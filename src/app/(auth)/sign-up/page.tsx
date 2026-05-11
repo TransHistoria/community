@@ -53,6 +53,12 @@ export default function SignUpPage() {
           </TabsContent>
         </Tabs>
         <div className="text-center text-sm text-ink-muted pt-6 mt-6 border-t border-border">
+          <div className="mb-2 text-xs">
+            需要首次初始化管理员？
+            <Link href="/create-admin" className="ml-1 text-trans-blue-deep hover:underline">
+              前往初始化页面
+            </Link>
+          </div>
           已有账号？
           <Link
             href="/sign-in"
