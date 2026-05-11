@@ -19,6 +19,7 @@ function EventsPageInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [events, setEvents] = React.useState<Event[]>([]);
+  const [loadFailed, setLoadFailed] = React.useState(false);
 
   const cat = searchParams.get("category") ?? undefined;
   const fmt = searchParams.get("format") ?? undefined;
@@ -28,8 +29,14 @@ function EventsPageInner() {
   React.useEffect(() => {
     api.events
       .list({ category: cat, format: fmt, city, q })
-      .then((res: { events: Event[] }) => setEvents(res.events))
-      .catch(() => setEvents([]));
+      .then((res: { events: Event[] }) => {
+        setEvents(res.events);
+        setLoadFailed(false);
+      })
+      .catch(() => {
+        setEvents([]);
+        setLoadFailed(true);
+      });
   }, [cat, fmt, city, q]);
 
   return (
@@ -62,7 +69,9 @@ function EventsPageInner() {
         <EmptyState
           title="当前没有可显示的活动"
           description={
-            canCreateEvent(user)
+            loadFailed
+              ? "活动加载失败，请稍后重试或检查网络设置。"
+              : canCreateEvent(user)
               ? "你也可以是第一个组织活动的人。"
               : "完成认证后可以参加活动；信任成员还能发布。"
           }
