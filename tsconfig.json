@@ -21,9 +21,9 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "worker"]
+  "exclude": ["node_modules", "worker", "prisma", "scripts"]
 }
