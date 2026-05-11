@@ -1,11 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/session";
+import { useCurrentUser } from "@/contexts/AuthContext";
 
-export async function TopBar() {
-  const user = await getCurrentUser();
+export function TopBar() {
+  const user = useCurrentUser();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-bg-warm/85 backdrop-blur-md">

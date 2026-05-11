@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
-import { env } from "@/lib/env";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -17,10 +17,12 @@ const serif = Source_Serif_4({
   weight: ["400", "500", "600"],
 });
 
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "跨性别社群";
+
 export const metadata: Metadata = {
   title: {
-    default: env.app.name,
-    template: `%s · ${env.app.name}`,
+    default: appName,
+    template: `%s · ${appName}`,
   },
   description: "私域跨性别社群活动平台 · 门槛清晰，隐私可控，按信任分层。",
   robots: { index: false, follow: false }, // private domain
@@ -38,10 +40,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const locale = process.env.NEXT_PUBLIC_APP_LOCALE ?? "zh-CN";
   return (
-    <html lang={env.app.locale} className={`${sans.variable} ${serif.variable}`}>
+    <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>
-        <ToastProvider>{children}</ToastProvider>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );
