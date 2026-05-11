@@ -3,7 +3,6 @@
 // calls to the worker.
 
 const LEGACY_WORKER_URL = "https://transcommunity.cyanmint.workers.dev";
-const COMMUNITY_DOMAIN_URL = "https://community.transhistoria.org";
 
 function normalizeUrl(url?: string): string {
   return (url || "").trim().replace(/\/$/, "");
@@ -13,18 +12,12 @@ const CONFIGURED_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_URL);
 const CONFIGURED_FALLBACK_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
 
 function resolveBaseUrls(): string[] {
-  const candidates: string[] = [
-    CONFIGURED_BASE_URL,
-    CONFIGURED_FALLBACK_BASE_URL,
-    typeof window !== "undefined" && window.location?.origin ? window.location.origin : "",
-    COMMUNITY_DOMAIN_URL,
-    LEGACY_WORKER_URL,
-  ];
+  const candidates: string[] = [CONFIGURED_BASE_URL, CONFIGURED_FALLBACK_BASE_URL, LEGACY_WORKER_URL];
   return candidates.filter((url, idx) => !!url && candidates.indexOf(url) === idx);
 }
 
 function getPrimaryBaseUrl(): string {
-  return resolveBaseUrls()[0] ?? COMMUNITY_DOMAIN_URL;
+  return resolveBaseUrls()[0] ?? LEGACY_WORKER_URL;
 }
 
 // ---- Low-level fetch helper ----
