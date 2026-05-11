@@ -16,30 +16,15 @@ import filesRoutes from "@/routes/files";
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ---- CORS ----
-// Allow requests from the static frontend (GitHub Pages) and localhost dev.
+// Intentionally permissive: allow requests from any third-party frontend.
 app.use(
   "/*",
   cors({
-    origin: (origin, c) => {
-      const configuredOrigins = (c.env.FRONTEND_URL ?? "")
-        .split(",")
-        .map((v: string) => v.trim())
-        .filter(Boolean);
-      const allowed = new Set([
-        ...configuredOrigins,
-        "https://community.transhistoria.org",
-        "https://transhistoria.github.io/community",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-      ]);
-      if (!origin) return configuredOrigins[0] ?? "https://community.transhistoria.org";
-      return allowed.has(origin) ? origin : "";
-    },
+    origin: "*",
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     maxAge: 86400,
-    credentials: true,
+    credentials: false,
   }),
 );
 
