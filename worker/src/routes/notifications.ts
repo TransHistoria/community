@@ -25,7 +25,9 @@ notifications.get("/", requireAuth, async (c) => {
 // POST /api/notifications/mark-read — mark all (or specific) as read
 notifications.post("/mark-read", requireAuth, async (c) => {
   const userId = c.get("userId");
-  const body = await c.req.json<{ ids?: string[] }>().catch(() => ({}));
+  const body: { ids?: string[] } = await c.req
+    .json<{ ids?: string[] }>()
+    .catch(() => ({}));
 
   if (body.ids && body.ids.length > 0) {
     // Mark specific notifications

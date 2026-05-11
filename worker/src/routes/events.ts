@@ -351,7 +351,9 @@ events.post("/:id/registrations", requireAuth, requireTier("VERIFIED"), async (c
   const overCap = event.capacity != null && (confirmedCount?.cnt ?? 0) >= event.capacity;
   const status = event.require_approval ? "PENDING" : overCap ? "WAITLIST" : "CONFIRMED";
 
-  const body = await c.req.json<{ answers?: Record<string, unknown> }>().catch(() => ({}));
+  const body: { answers?: Record<string, unknown> } = await c.req
+    .json<{ answers?: Record<string, unknown> }>()
+    .catch(() => ({}));
 
   // Upsert registration
   const existing = await c.env.DB.prepare(

@@ -349,7 +349,9 @@ users.post("/me/invites", requireAuth, async (c) => {
     return c.json({ error: "本季度配额已用完" }, 400);
   }
 
-  const body = await c.req.json<{ note?: string; expiresInDays?: number }>().catch(() => ({}));
+  const body: { note?: string; expiresInDays?: number } = await c.req
+    .json<{ note?: string; expiresInDays?: number }>()
+    .catch(() => ({}));
 
   let code = "";
   for (let i = 0; i < 8; i++) {
