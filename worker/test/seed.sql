@@ -5,11 +5,11 @@
 -- ── Users ──────────────────────────────────────────────────────────────────
 
 INSERT INTO users
-  (id, email, handle, display_name, tier, status, email_verified_at)
+  (id, email, handle, display_name, tier, status, email_verified_at, totp_secret, totp_enabled)
 VALUES
-  ('ci-admin',     'admin@ci.test',     'ci_admin',     'CI Admin',     'ADMIN',    'ACTIVE', datetime('now')),
-  ('ci-verified',  'verified@ci.test',  'ci_verified',  'CI Verified',  'VERIFIED', 'ACTIVE', datetime('now')),
-  ('ci-user2',     'user2@ci.test',     'ci_user2',     'CI User2',     'VERIFIED', 'ACTIVE', datetime('now'));
+  ('ci-admin',     'admin@ci.test',     'ci_admin',     'CI Admin',     'ADMIN',    'ACTIVE', datetime('now'), 'JBSWY3DPEHPK3PXP', 1),
+  ('ci-verified',  'verified@ci.test',  'ci_verified',  'CI Verified',  'VERIFIED', 'ACTIVE', datetime('now'), NULL, 0),
+  ('ci-user2',     'user2@ci.test',     'ci_user2',     'CI User2',     'VERIFIED', 'ACTIVE', datetime('now'), NULL, 0);
 
 -- ── Magic-link tokens (known values so the test script can call /verify) ──
 

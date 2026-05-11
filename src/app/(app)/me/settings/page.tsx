@@ -4,11 +4,22 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ExportButton } from "./ExportButton";
 import { DeleteAccountForm } from "./DeleteAccountForm";
+import { ChangeEmailForm } from "./ChangeEmailForm";
 
 export default function MeSettingsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader eyebrow="设置" title="账号与隐私" />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>修改邮箱</CardTitle>
+          <CardDescription>使用当前 TOTP 验证码确认后可变更登录邮箱。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChangeEmailForm />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -27,6 +27,9 @@ export interface UserRow {
   id: string;
   email: string;
   email_verified_at: string | null;
+  totp_secret: string | null;
+  totp_pending_secret: string | null;
+  totp_enabled: number;
   handle: string;
   display_name: string;
   pronouns: string | null;

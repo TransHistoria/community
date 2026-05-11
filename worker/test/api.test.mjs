@@ -17,6 +17,7 @@ const BASE = (process.env.API_BASE ?? "http://localhost:8787").replace(/\/$/, ""
 // ── Tiny test harness ────────────────────────────────────────────────────────
 
 import { appendFileSync } from "node:fs";
+import { createHmac } from "node:crypto";
 
 let passed = 0;
 let failed = 0;
@@ -78,6 +79,41 @@ async function test(name, fn) {
 function section(name) {
   currentSection = name;
   console.log(`\n${name}:`);
+}
+
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function base32Decode(input) {
+  const cleaned = input.toUpperCase().replace(/=+$/g, "");
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (const ch of cleaned) {
+    const idx = BASE32.indexOf(ch);
+    if (idx < 0) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+function totp(secret) {
+  const key = base32Decode(secret);
+  const counter = Math.floor(Date.now() / 1000 / 30);
+  const buf = Buffer.alloc(8);
+  buf.writeUInt32BE(Math.floor(counter / 2 ** 32), 0);
+  buf.writeUInt32BE(counter >>> 0, 4);
+  const hmac = createHmac("sha1", key).update(buf).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code =
+    ((hmac[offset] & 0x7f) << 24) |
+    (hmac[offset + 1] << 16) |
+    (hmac[offset + 2] << 8) |
+    hmac[offset + 3];
+  return `${code % 1000000}`.padStart(6, "0");
 }
 
 /** Poll /api/health until the worker responds (up to 30 s). */
@@ -231,11 +267,29 @@ async function main() {
     assert(vr.status === 401, "sanity: unauthenticated /me should 401");
   });
 
+  await test("POST /api/auth/register-totp — existing user → 200", async () => {
+    const { status, data } = await api("POST", "/api/auth/register-totp", {
+      email: "verified@ci.test",
+    });
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.ok, "expected ok");
+  });
+
   await test("POST /api/auth/verify — invalid token → 400", async () => {
     const { status } = await api("POST", "/api/auth/verify", {
       token: "bad-token-xyz",
     });
     assert(status === 400, `expected 400, got ${status}`);
+  });
+
+  await test("POST /api/auth/login-totp — valid admin TOTP → 200 + JWT", async () => {
+    const { status, data } = await api("POST", "/api/auth/login-totp", {
+      email: "admin@ci.test",
+      code: totp("JBSWY3DPEHPK3PXP"),
+    });
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.token, "expected token");
+    assert(data.user.tier === "ADMIN", `expected ADMIN, got ${data.user.tier}`);
   });
 
   await test("POST /api/auth/verify — admin token → 200 + JWT; /me returns correct user", async () => {

@@ -5,8 +5,10 @@
 import type { SendEmail } from "@cloudflare/workers-types";
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
+import { toString as toQrString } from "qrcode";
 import {
   verificationEmailHtml,
+  totpSetupEmailHtml,
   applicationApprovedEmailHtml,
   applicationRejectedEmailHtml,
   registrationStatusEmailHtml,
@@ -56,6 +58,23 @@ export async function sendVerificationEmail(
 ): Promise<void> {
   const { html, text } = verificationEmailHtml({ url: args.url, appName: p.appName });
   await send(p.sendEmail, p.from, args.to, `登录 ${p.appName}`, html, text);
+}
+
+export async function sendTotpSetupEmail(
+  p: SendParams,
+  args: { to: string; secret: string; otpauthUrl: string },
+): Promise<void> {
+  const qrAscii = await toQrString(args.otpauthUrl, {
+    type: "terminal",
+    small: true,
+  });
+  const { html, text } = totpSetupEmailHtml({
+    appName: p.appName,
+    secret: args.secret,
+    qrAscii,
+    otpauthUrl: args.otpauthUrl,
+  });
+  await send(p.sendEmail, p.from, args.to, `${p.appName} TOTP 初始化`, html, text);
 }
 
 export async function sendApplicationApprovedEmail(

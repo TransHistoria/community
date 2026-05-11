@@ -244,6 +244,18 @@ export const api = {
     sendLink: (email: string) =>
       post<{ ok: boolean }>("/api/auth/send-link", { email }),
 
+    registerTotp: (email: string) =>
+      post<{ ok: boolean }>("/api/auth/register-totp", { email }),
+
+    loginTotp: (email: string, code: string) =>
+      post<{ ok: boolean; token: string; user: SessionUser }>("/api/auth/login-totp", {
+        email,
+        code,
+      }),
+
+    changeEmail: (newEmail: string, code: string) =>
+      post<{ ok: boolean }>("/api/auth/change-email", { newEmail, code }),
+
     verify: (token: string) =>
       post<{ ok: boolean; token: string; user: SessionUser }>(
         "/api/auth/verify",

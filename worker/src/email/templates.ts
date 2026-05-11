@@ -49,6 +49,28 @@ export function verificationEmailHtml(params: {
   return { html, text };
 }
 
+export function totpSetupEmailHtml(params: {
+  appName: string;
+  secret: string;
+  qrAscii: string;
+  otpauthUrl: string;
+}): { html: string; text: string } {
+  const escapedAscii = params.qrAscii
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const html = baseLayout(
+    params.appName,
+    `<p>你好，</p>
+<p>请使用认证器应用（例如 Google Authenticator / Microsoft Authenticator）扫描二维码并保存密钥。</p>
+<pre style="font-size: 8px; line-height: 1; background: #111; color: #f7f7f7; padding: 12px; border-radius: 8px; overflow-x: auto;">${escapedAscii}</pre>
+<p>密钥：<code style="font-size: 14px;">${params.secret}</code></p>
+<p>如果无法扫码，可手动添加并填写上述密钥。</p>`,
+  );
+  const text = `你的 ${params.appName} TOTP 初始化信息：\n\n${params.qrAscii}\n\n密钥：${params.secret}\n\n如需手动导入，可使用 otpauth URL：\n${params.otpauthUrl}`;
+  return { html, text };
+}
+
 export function applicationApprovedEmailHtml(params: {
   appName: string;
 }): { html: string; text: string } {

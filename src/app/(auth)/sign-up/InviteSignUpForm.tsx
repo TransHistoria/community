@@ -24,7 +24,7 @@ export function InviteSignUpForm() {
     setPending(true);
     try {
       await api.auth.verifyInvite(parsed.data.email, parsed.data.code);
-      await api.auth.sendLink(parsed.data.email);
+      await api.auth.registerTotp(parsed.data.email);
       setSent(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "校验失败，请检查邀请码";
@@ -37,8 +37,8 @@ export function InviteSignUpForm() {
   if (sent) {
     return (
       <div className="text-center space-y-2">
-        <p className="text-sm font-medium">登录链接已发送到你的邮箱</p>
-        <p className="text-xs text-ink-subtle">链接 30 分钟内有效，仅限一次。</p>
+        <p className="text-sm font-medium">TOTP 初始化信息已发送到你的邮箱</p>
+        <p className="text-xs text-ink-subtle">请在邮箱里扫码配置认证器后，前往登录页输入 6 位验证码。</p>
       </div>
     );
   }
@@ -66,14 +66,14 @@ export function InviteSignUpForm() {
           autoComplete="off"
           placeholder="例如 K7H3M9N2"
           value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onChange={(e) => setCode(e.target.value)}
           disabled={pending}
           className="font-mono tracking-widest"
         />
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" className="w-full" size="lg" disabled={pending}>
-        {pending ? "校验中..." : "校验并发送登录链接"}
+        {pending ? "处理中..." : "校验并发送 TOTP 初始化邮件"}
       </Button>
     </form>
   );

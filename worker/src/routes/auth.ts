@@ -4,8 +4,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Env, Variables } from "@/types";
 import { createMagicToken, verifyMagicToken } from "@/auth/magic";
+import { buildOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "@/auth/totp";
 import { signJwt } from "@/auth/jwt";
-import { sendVerificationEmail } from "@/email/sender";
+import { sendTotpSetupEmail, sendVerificationEmail } from "@/email/sender";
 import { newId } from "@/lib/utils";
 import { requireAuth } from "@/middleware/auth";
 import type { UserRow } from "@/types";
@@ -43,6 +44,174 @@ auth.post("/send-link", async (c) => {
     return c.json({ error: "邮件发送失败，请联系管理员检查邮件服务配置" }, 502);
   }
 
+  return c.json({ ok: true });
+});
+
+// POST /api/auth/register-totp — generate TOTP secret and email setup QR
+auth.post("/register-totp", async (c) => {
+  const body = await c.req.json<{ email?: string }>();
+  const email = (body.email ?? "").trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return c.json({ error: "请提供有效的邮箱地址" }, 400);
+  }
+
+  let user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
+    .bind(email)
+    .first<UserRow>();
+
+  if (!user) {
+    const adminEmails = c.env.ADMIN_EMAILS
+      ? c.env.ADMIN_EMAILS.split(",").map((s) => s.trim().toLowerCase())
+      : [];
+    const isAdmin = adminEmails.includes(email);
+    const baseHandle = email.split("@")[0]!.replace(/[^a-z0-9]/g, "_");
+    const handle = await ensureUniqueHandle(c.env.DB, baseHandle, "");
+    let tier = "UNVERIFIED";
+    let applicationId: string | null = null;
+    if (isAdmin) {
+      tier = "ADMIN";
+    } else {
+      const app = await c.env.DB.prepare(
+        "SELECT id FROM applications WHERE email = ? AND status = 'APPROVED' ORDER BY reviewed_at DESC LIMIT 1",
+      )
+        .bind(email)
+        .first<{ id: string }>();
+      if (app) {
+        tier = "VERIFIED";
+        applicationId = app.id;
+      }
+    }
+    const userId = newId();
+    await c.env.DB.prepare(
+      `INSERT INTO users (id, email, handle, display_name, tier, status, email_verified_at, application_id)
+       VALUES (?, ?, ?, ?, ?, 'ACTIVE', datetime('now'), ?)`,
+    )
+      .bind(userId, email, handle, handle, tier, applicationId)
+      .run();
+    user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+      .bind(userId)
+      .first<UserRow>();
+  }
+
+  if (!user || user.status === "SUSPENDED") return c.json({ error: "账户不可用" }, 403);
+
+  const secret = generateTotpSecret();
+  const otpauthUrl = buildOtpAuthUrl(c.env.APP_NAME, email, secret);
+  if (user.totp_enabled && user.totp_secret) {
+    await c.env.DB.prepare(
+      "UPDATE users SET totp_pending_secret = ?, updated_at = datetime('now') WHERE id = ?",
+    )
+      .bind(secret, user.id)
+      .run();
+  } else {
+    await c.env.DB.prepare(
+      "UPDATE users SET totp_secret = ?, totp_pending_secret = NULL, totp_enabled = 1, email_verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+    )
+      .bind(secret, user.id)
+      .run();
+  }
+
+  try {
+    await sendTotpSetupEmail(
+      {
+        sendEmail: c.env.SEND_EMAIL,
+        from: c.env.EMAIL_FROM,
+        appName: c.env.APP_NAME,
+      },
+      { to: email, secret, otpauthUrl },
+    );
+  } catch (err) {
+    console.error("Failed to send TOTP setup email:", err);
+    if (shouldSoftFailEmail(c)) return c.json({ ok: true });
+    return c.json({ error: "邮件发送失败，请联系管理员检查邮件服务配置" }, 502);
+  }
+
+  return c.json({ ok: true });
+});
+
+// POST /api/auth/login-totp — verify TOTP code and issue JWT
+auth.post("/login-totp", async (c) => {
+  const body = await c.req.json<{ email?: string; code?: string }>();
+  const email = (body.email ?? "").trim().toLowerCase();
+  const code = (body.code ?? "").trim();
+  if (!email || !code) return c.json({ error: "参数缺失" }, 400);
+
+  let user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
+    .bind(email)
+    .first<UserRow>();
+  if (!user || user.status !== "ACTIVE") return c.json({ error: "用户不存在" }, 401);
+  if (!user.totp_enabled || !user.totp_secret) {
+    return c.json({ error: "该邮箱尚未初始化 TOTP，请先完成注册" }, 400);
+  }
+  let verified = await verifyTotpCode(user.totp_secret, code);
+  if (!verified && user.totp_pending_secret) {
+    const pendingOk = await verifyTotpCode(user.totp_pending_secret, code);
+    if (pendingOk) {
+      await c.env.DB.prepare(
+        "UPDATE users SET totp_secret = ?, totp_pending_secret = NULL, totp_enabled = 1, updated_at = datetime('now') WHERE id = ?",
+      )
+        .bind(user.totp_pending_secret, user.id)
+        .run();
+      user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+        .bind(user.id)
+        .first<UserRow>();
+      verified = true;
+    }
+  }
+  if (!verified || !user) return c.json({ error: "验证码无效" }, 401);
+
+  await c.env.DB.prepare(
+    "UPDATE users SET email_verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+  )
+    .bind(user.id)
+    .run();
+
+  const jwt = await signJwt(
+    { sub: user.id, handle: user.handle, tier: user.tier },
+    c.env.JWT_SECRET,
+  );
+  return c.json({
+    ok: true,
+    token: jwt,
+    user: {
+      id: user.id,
+      handle: user.handle,
+      displayName: user.display_name,
+      tier: user.tier,
+      avatarUrl: user.avatar_url,
+    },
+  });
+});
+
+// POST /api/auth/change-email — change own email after TOTP verification
+auth.post("/change-email", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json<{ newEmail?: string; code?: string }>();
+  const newEmail = (body.newEmail ?? "").trim().toLowerCase();
+  const code = (body.code ?? "").trim();
+  if (!newEmail || !newEmail.includes("@") || !code) {
+    return c.json({ error: "参数缺失" }, 400);
+  }
+
+  const user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+    .bind(userId)
+    .first<UserRow>();
+  if (!user || !user.totp_secret || !user.totp_enabled) {
+    return c.json({ error: "请先初始化 TOTP" }, 400);
+  }
+  const ok = await verifyTotpCode(user.totp_secret, code);
+  if (!ok) return c.json({ error: "验证码无效" }, 401);
+
+  const exists = await c.env.DB.prepare("SELECT id FROM users WHERE email = ? AND id <> ?")
+    .bind(newEmail, userId)
+    .first<{ id: string }>();
+  if (exists) return c.json({ error: "该邮箱已被使用" }, 409);
+
+  await c.env.DB.prepare(
+    "UPDATE users SET email = ?, email_verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+  )
+    .bind(newEmail, userId)
+    .run();
   return c.json({ ok: true });
 });
 
