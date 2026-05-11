@@ -154,6 +154,16 @@ export async function sendEventReminderEmail(
   );
 }
 
+export async function sendTestEmail(
+  p: SendParams,
+  args: { to: string },
+): Promise<void> {
+  const now = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/></head><body style="font-family:sans-serif;background:#f5f5f5;padding:40px 0"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px 40px;box-shadow:0 2px 8px rgba(0,0,0,0.08)"><h2 style="margin:0 0 16px;color:#55CDFC">📧 测试邮件</h2><p style="color:#555;line-height:1.7">这是一封来自 <strong>${p.appName}</strong> 的测试邮件。<br/>如果你收到此邮件，说明邮件服务配置正常。</p><p style="color:#999;font-size:13px">发送时间：${now}</p></div></body></html>`;
+  const text = `测试邮件 — ${p.appName}\n\n这是一封测试邮件。如果你收到此邮件，说明邮件服务配置正常。\n发送时间：${now}`;
+  await send(p.sendEmail, p.from, args.to, `${p.appName} 邮件服务测试`, html, text);
+}
+
 export async function sendContactRequestEmail(
   p: SendParams,
   args: {

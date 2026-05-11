@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { Env, Variables, UserRow, ReportRow, AuditLogRow } from "@/types";
 import { requireAuth, requireTier } from "@/middleware/auth";
 import { newId } from "@/lib/utils";
+import { sendTestEmail } from "@/email/sender";
 
 const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -159,6 +160,34 @@ admin.patch("/reports/:id", async (c) => {
     hideTarget: body.hideTarget,
   });
 
+  return c.json({ ok: true });
+});
+
+// ---- System ----
+
+// POST /api/admin/test-email — send a test email to the calling admin
+admin.post("/test-email", async (c) => {
+  const userId = c.get("userId")!;
+  const user = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
+    .bind(userId)
+    .first<{ email: string }>();
+  if (!user) return c.json({ error: "用户不存在" }, 404);
+
+  const body = await c.req.json<{ to?: string }>().catch(() => ({ to: undefined }));
+  const to = (body.to ?? "").trim() || user.email;
+  if (!to.includes("@")) return c.json({ error: "无效的收件地址" }, 400);
+
+  try {
+    await sendTestEmail(
+      { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+      { to },
+    );
+  } catch (err) {
+    console.error("Failed to send test email:", err);
+    return c.json({ error: "邮件发送失败，请检查邮件服务配置" }, 502);
+  }
+
+  await auditLog(c.env.DB, userId, "ADMIN_TEST_EMAIL", "System", userId, { to });
   return c.json({ ok: true });
 });
 

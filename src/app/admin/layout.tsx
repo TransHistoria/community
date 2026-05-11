@@ -29,6 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/reports" className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">举报队列</Link>
           <Link href="/admin/users" className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">用户管理</Link>
           <Link href="/admin/audit" className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">操作日志</Link>
+          <Link href="/admin/settings" className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">系统设置</Link>
         </aside>
         <div>{children}</div>
       </div>

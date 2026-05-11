@@ -488,6 +488,9 @@ export const api = {
       ).toString();
       return get<{ logs: unknown[] }>(`/api/admin/audit${qs ? `?${qs}` : ""}`);
     },
+
+    sendTestEmail: (to?: string) =>
+      post<{ ok: boolean }>("/api/admin/test-email", to ? { to } : {}),
   },
 
   // Files
