@@ -11,9 +11,11 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EventCard } from "@/components/event/EventCard";
 import { EmptyState } from "@/components/ui/empty";
-import { ALL_CATEGORIES, CATEGORY_LABEL } from "@/components/event/event-config";
+import { ALL_CATEGORIES, CATEGORY_LABEL, FORMAT_LABEL } from "@/components/event/event-config";
 import type { EventCategory } from "@/lib/enums";
 import { Plus } from "lucide-react";
+
+const ALL_FORMATS = ["ONLINE", "OFFLINE", "HYBRID"] as const;
 
 function EventsPageInner() {
   const { user } = useAuth();
@@ -56,13 +58,31 @@ function EventsPageInner() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">
-        <FilterPill href="/events" active={!cat}>全部</FilterPill>
-        {ALL_CATEGORIES.map((c) => (
-          <FilterPill key={c} href={`/events?category=${c}`} active={cat === c}>
-            {CATEGORY_LABEL[c as EventCategory]}
-          </FilterPill>
-        ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <FilterPill href={fmt ? `/events?format=${fmt}` : "/events"} active={!cat}>全部分类</FilterPill>
+          {ALL_CATEGORIES.map((c) => (
+            <FilterPill
+              key={c}
+              href={`/events?category=${c}${fmt ? `&format=${fmt}` : ""}`}
+              active={cat === c}
+            >
+              {CATEGORY_LABEL[c as EventCategory]}
+            </FilterPill>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <FilterPill href={cat ? `/events?category=${cat}` : "/events"} active={!fmt}>全部形式</FilterPill>
+          {ALL_FORMATS.map((f) => (
+            <FilterPill
+              key={f}
+              href={`/events?format=${f}${cat ? `&category=${cat}` : ""}`}
+              active={fmt === f}
+            >
+              {FORMAT_LABEL[f]}
+            </FilterPill>
+          ))}
+        </div>
       </div>
 
       {events.length === 0 ? (
