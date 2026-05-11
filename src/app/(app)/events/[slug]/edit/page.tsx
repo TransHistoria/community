@@ -1,4 +1,5 @@
 import EditEventPageClient from "./EditEventPageClient";
+import { MAX_EVENT_ID_FALLBACK } from "@/lib/event-static";
 
 export const metadata = { title: "编辑活动" };
 
@@ -22,7 +23,7 @@ const EVENT_SLUG_FALLBACKS = ["placeholder", "event"] as const;
 
 export async function generateStaticParams() {
   const slugs = new Set<string>(EVENT_SLUG_FALLBACKS);
-  for (let i = 1; i <= 200; i++) slugs.add(String(i));
+  for (let i = 1; i <= MAX_EVENT_ID_FALLBACK; i++) slugs.add(String(i));
 
   for (const baseUrl of resolveBaseUrls()) {
     try {
