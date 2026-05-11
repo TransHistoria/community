@@ -253,9 +253,6 @@ export const api = {
     verifyInvite: (email: string, code: string) =>
       post<{ ok: boolean }>("/api/auth/verify-invite", { email, code }),
 
-    createAdmin: (email: string, secret: string) =>
-      post<{ ok: boolean }>("/api/auth/create-admin", { email, secret }),
-
     me: () => get<SessionUser>("/api/auth/me"),
 
     signOut: () => post<{ ok: boolean }>("/api/auth/sign-out"),

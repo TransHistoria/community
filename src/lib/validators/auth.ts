@@ -20,11 +20,6 @@ export const signUpInviteSchema = z.object({
   code: inviteCodeSchema,
 });
 
-export const createAdminSchema = z.object({
-  email: emailSchema,
-  secret: z.string().min(1, "请填写初始化密钥"),
-});
-
 export const applicationSchema = z.object({
   email: emailSchema,
   identity: z
