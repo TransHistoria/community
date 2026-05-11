@@ -37,7 +37,7 @@ export async function generateStaticParams() {
 
   if (handles.size === PROFILE_HANDLE_FALLBACKS.length) {
     console.warn(
-      "generateStaticParams: using only fallback profile handles; static export may miss real profile pages",
+      "generateStaticParams: using only fallback profile handles (expected when API is unavailable during build); client-side routing can still resolve runtime profile pages",
     );
   }
 

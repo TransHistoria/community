@@ -37,7 +37,7 @@ export async function generateStaticParams() {
 
   if (slugs.size === EVENT_SLUG_FALLBACKS.length) {
     console.warn(
-      "generateStaticParams: using only fallback event slugs; static export may miss real event detail pages",
+      "generateStaticParams: using only fallback event slugs (expected when API is unavailable during build); client-side routing can still resolve runtime event pages",
     );
   }
 
