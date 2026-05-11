@@ -2,7 +2,7 @@ name: Deploy Frontend to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "src/**"
       - "public/**"
@@ -25,6 +25,7 @@ concurrency:
 jobs:
   build:
     name: Build static frontend
+    if: github.ref_name == github.event.repository.default_branch || startsWith(github.ref, 'refs/heads/copilot/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -58,6 +59,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
+    if: github.ref_name == github.event.repository.default_branch || startsWith(github.ref, 'refs/heads/copilot/')
     needs: build
     runs-on: ubuntu-latest
     environment:
