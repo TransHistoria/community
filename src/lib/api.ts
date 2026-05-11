@@ -4,19 +4,23 @@
 
 const LEGACY_WORKER_URL = "https://transcommunity.cyanmint.workers.dev";
 const COMMUNITY_DOMAIN_URL = "https://community.transhistoria.org";
-const CONFIGURED_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
-const CONFIGURED_FALLBACK_BASE_URL = (process.env.NEXT_PUBLIC_API_FALLBACK_URL || "")
-  .trim()
-  .replace(/\/$/, "");
+
+function normalizeUrl(url?: string): string {
+  return (url || "").trim().replace(/\/$/, "");
+}
+
+const CONFIGURED_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_URL);
+const CONFIGURED_FALLBACK_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
 
 function resolveBaseUrls(): string[] {
-  const urls: string[] = [];
-  if (CONFIGURED_BASE_URL) urls.push(CONFIGURED_BASE_URL);
-  if (CONFIGURED_FALLBACK_BASE_URL) urls.push(CONFIGURED_FALLBACK_BASE_URL);
-  if (!urls.includes(COMMUNITY_DOMAIN_URL)) urls.push(COMMUNITY_DOMAIN_URL);
-  if (typeof window !== "undefined" && window.location?.origin) urls.push(window.location.origin);
-  if (!urls.includes(LEGACY_WORKER_URL)) urls.push(LEGACY_WORKER_URL);
-  return urls;
+  const candidates: string[] = [
+    CONFIGURED_BASE_URL,
+    CONFIGURED_FALLBACK_BASE_URL,
+    typeof window !== "undefined" && window.location?.origin ? window.location.origin : "",
+    COMMUNITY_DOMAIN_URL,
+    LEGACY_WORKER_URL,
+  ];
+  return candidates.filter((url, idx) => !!url && candidates.indexOf(url) === idx);
 }
 
 function getPrimaryBaseUrl(): string {
@@ -53,6 +57,7 @@ async function request<T>(
 
   const baseUrls = resolveBaseUrls();
   let lastNetworkError: unknown = null;
+  let lastApiError: ApiError | null = null;
 
   for (const baseUrl of baseUrls) {
     try {
@@ -64,7 +69,13 @@ async function request<T>(
           const body = (await res.json()) as { error?: string };
           if (body.error) message = body.error;
         } catch {}
-        throw new ApiError(res.status, message);
+        const apiError = new ApiError(res.status, message);
+        // Wrong-host fallbacks often return 404/405 for /api/*; keep trying.
+        if (res.status === 404 || res.status === 405) {
+          lastApiError = apiError;
+          continue;
+        }
+        throw apiError;
       }
 
       if (res.status === 204) return undefined as T;
@@ -75,6 +86,7 @@ async function request<T>(
     }
   }
 
+  if (lastApiError) throw lastApiError;
   throw lastNetworkError instanceof Error
     ? lastNetworkError
     : new Error("请求失败，请检查网络连接");
