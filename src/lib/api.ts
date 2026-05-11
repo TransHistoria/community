@@ -3,7 +3,10 @@
 // calls to the worker.
 
 const BASE_URL =
-  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787").replace(/\/$/, "");
+  (
+    process.env.NEXT_PUBLIC_API_URL ??
+    "https://transcommunity.cyanmint.workers.dev"
+  ).replace(/\/$/, "");
 
 // ---- Low-level fetch helper ----
 

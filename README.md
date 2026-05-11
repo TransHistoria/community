@@ -49,6 +49,7 @@
 ## 环境变量
 
 后端环境变量统一通过 `worker/wrangler.jsonc` 的 `vars` 与 Wrangler secrets 配置，不再使用 `.env.example`。
+前端默认 API 地址为 `https://transcommunity.cyanmint.workers.dev`（可通过 `NEXT_PUBLIC_API_URL` 覆盖）。
 
 ## 目录结构
 
