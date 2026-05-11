@@ -4,17 +4,22 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 
+const PUBLIC_EVENT_DETAIL_PATH = /^\/events\/[^/]+$/;
+const PUBLIC_USER_PROFILE_PATH = /^\/u\/[^/]+$/;
+
+function isGuestAccessiblePath(pathname: string): boolean {
+  return (
+    pathname === "/events" ||
+    PUBLIC_EVENT_DETAIL_PATH.test(pathname) ||
+    PUBLIC_USER_PROFILE_PATH.test(pathname)
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isPublicEventsListPage = pathname === "/events";
-  const isPublicEventDetailPage = /^\/events\/[^/]+$/.test(pathname);
-  const isPublicUserProfilePage = /^\/u\/[^/]+$/.test(pathname);
-  const isGuestAccessiblePage =
-    isPublicEventsListPage ||
-    isPublicEventDetailPage ||
-    isPublicUserProfilePage;
+  const isGuestAccessiblePage = isGuestAccessiblePath(pathname);
 
   useEffect(() => {
     if (!loading && !user && !isGuestAccessiblePage) {
@@ -22,8 +27,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router, isGuestAccessiblePage]);
 
-  if (loading && !isGuestAccessiblePage) return null;
-  if (!user && isGuestAccessiblePage) return <AppShell>{children}</AppShell>;
-  if (!user) return null;
+  if (!user) {
+    if (loading && !isGuestAccessiblePage) return null;
+    if (!isGuestAccessiblePage) return null;
+  }
+
   return <AppShell>{children}</AppShell>;
 }
