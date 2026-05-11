@@ -450,4 +450,3 @@ export const api = {
 };
 
 export { ApiError };
-export type { ApiError };
