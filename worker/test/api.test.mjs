@@ -231,6 +231,36 @@ async function main() {
     assert(vr.status === 401, "sanity: unauthenticated /me should 401");
   });
 
+  await test("POST /api/auth/create-admin — missing params → 400", async () => {
+    const { status } = await api("POST", "/api/auth/create-admin", { email: "" });
+    assert(status === 400, `expected 400, got ${status}`);
+  });
+
+  await test("POST /api/auth/create-admin — wrong secret → 403", async () => {
+    const { status } = await api("POST", "/api/auth/create-admin", {
+      email: "bootstrap-admin@ci.test",
+      secret: "wrong-secret",
+    });
+    assert(status === 403, `expected 403, got ${status}`);
+  });
+
+  await test("POST /api/auth/create-admin — valid secret creates first admin and sends link", async () => {
+    const { status, data } = await api("POST", "/api/auth/create-admin", {
+      email: "bootstrap-admin@ci.test",
+      secret: "ci-create-admin-secret",
+    });
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.ok, "expected ok");
+  });
+
+  await test("POST /api/auth/create-admin — second attempt after admin exists → 409", async () => {
+    const { status } = await api("POST", "/api/auth/create-admin", {
+      email: "another-admin@ci.test",
+      secret: "ci-create-admin-secret",
+    });
+    assert(status === 409, `expected 409, got ${status}`);
+  });
+
   await test("POST /api/auth/verify — invalid token → 400", async () => {
     const { status } = await api("POST", "/api/auth/verify", {
       token: "bad-token-xyz",

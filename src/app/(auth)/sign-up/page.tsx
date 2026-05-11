@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { InviteSignUpForm } from "./InviteSignUpForm";
+import { CreateAdminForm } from "./CreateAdminForm";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "加入社群" };
@@ -24,6 +25,9 @@ export default function SignUpPage() {
             <TabsTrigger value="apply" className="flex-1">
               申请审核
             </TabsTrigger>
+            <TabsTrigger value="admin" className="flex-1">
+              初始化管理员
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="invite" className="space-y-4">
             <p className="text-sm text-ink-muted">
@@ -39,6 +43,13 @@ export default function SignUpPage() {
             <Button asChild className="w-full" size="lg">
               <Link href="/apply">开始填写申请</Link>
             </Button>
+          </TabsContent>
+          <TabsContent value="admin" className="space-y-4">
+            <p className="text-sm text-ink-muted">
+              仅用于首次初始化：当后端配置了 <code>CREATE_ADMIN</code> 密钥时，
+              可在这里创建首个管理员账号并发送登录链接。
+            </p>
+            <CreateAdminForm />
           </TabsContent>
         </Tabs>
         <div className="text-center text-sm text-ink-muted pt-6 mt-6 border-t border-border">

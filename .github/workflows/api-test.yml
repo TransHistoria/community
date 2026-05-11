@@ -46,6 +46,7 @@ jobs:
           cat > .dev.vars <<'EOF'
           JWT_SECRET=ci-test-secret-do-not-use-in-production
           ADMIN_EMAILS=admin@ci.test
+          CREATE_ADMIN=ci-create-admin-secret
           EOF
 
       # ── Apply schema ────────────────────────────────────────────────────────
