@@ -131,13 +131,14 @@ Markdown bio 已渲染（粗体、斜体、列表）；联系方式区按可见�
 pnpm config set registry https://registry.npmmirror.com
 pnpm install --network-concurrency=4
 
-# 2. 数据库 + 种子（首次）
-cp .env.example .env.local
-cp .env.example .env       # Prisma CLI 只读 .env
-pnpm db:migrate            # 应用迁移
-pnpm create-admin you@example.com   # 创建首位管理员
+# 2. 启动后端（Wrangler）
+cd worker
+pnpm install
+pnpm run setup
+pnpm run dev
 
 # 3. 启动
+cd ..
 pnpm dev                   # http://localhost:3000
 ```
 

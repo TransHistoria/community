@@ -16,23 +16,19 @@
 
 ## 本地开发
 
-1. **依赖**：Node.js 20+、PostgreSQL 14+、pnpm（或 npm / yarn）
-2. **安装**
+1. **依赖**：Node.js 20+、pnpm（或 npm / yarn）
+2. **安装前端依赖**
    ```bash
    pnpm install
-   cp .env.example .env.local
-   # 修改 .env.local 中的 DATABASE_URL 等
    ```
-3. **数据库**
+3. **安装并启动后端（Wrangler）**
    ```bash
-   pnpm db:migrate      # 应用迁移
-   pnpm db:seed         # 写入分类等基础数据
+   cd worker
+   pnpm install
+   pnpm run setup
+   pnpm run dev
    ```
-4. **创建首位管理员**
-   ```bash
-   pnpm create-admin admin@example.com
-   ```
-5. **启动**
+4. **启动前端**
    ```bash
    pnpm dev
    # http://localhost:3000
@@ -54,11 +50,7 @@
 
 ## 环境变量
 
-见 `.env.example` 中的注释。最少需要：
-
-- `DATABASE_URL`
-- `AUTH_SECRET`
-- 邮件渠道二选一：`RESEND_API_KEY` 或 `SMTP_*`（开发期都不填会输出到控制台）
+后端环境变量统一通过 `worker/wrangler.jsonc` 的 `vars` 与 Wrangler secrets 配置，不再使用 `.env.example`。
 
 ## 目录结构
 
