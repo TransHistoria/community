@@ -11,6 +11,7 @@ import applicationsRoutes from "@/routes/applications";
 import notificationsRoutes from "@/routes/notifications";
 import adminRoutes from "@/routes/admin";
 import reportsRoutes from "@/routes/reports";
+import filesRoutes from "@/routes/files";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -46,6 +47,7 @@ app.route("/api/applications", applicationsRoutes);
 app.route("/api/notifications", notificationsRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/reports", reportsRoutes);
+app.route("/api/files", filesRoutes);
 
 // ---- 404 fallback ----
 app.notFound((c) => c.json({ error: "Not found" }, 404));

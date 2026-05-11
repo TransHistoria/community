@@ -26,13 +26,13 @@
   ],
 
   // R2 bucket for file uploads (avatars, event covers)
-  // Uncomment and configure after running: wrangler r2 bucket create transcommunity-files
-  // "r2_buckets": [
-  //   {
-  //     "binding": "FILES",
-  //     "bucket_name": "transcommunity-files"
-  //   }
-  // ],
+  // Create with: wrangler r2 bucket create transcommunity
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "transcommunity"
+    }
+  ],
 
   "vars": {
     // Override these in the Cloudflare dashboard as secrets:

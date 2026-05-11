@@ -442,6 +442,28 @@ export const api = {
     },
   },
 
+  // Files
+  files: {
+    upload: (file: File, purpose: string): Promise<{ ok: boolean; url: string }> => {
+      const token = getToken();
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("purpose", purpose);
+      return fetch(`${BASE_URL}/api/files`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      }).then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new ApiError(res.status, body.error ?? res.statusText);
+        }
+        return res.json() as Promise<{ ok: boolean; url: string }>;
+      });
+    },
+    url: (path: string): string => `${BASE_URL}${path}`,
+  },
+
   // Reports
   reports: {
     submit: (targetType: string, targetId: string, reason: string) =>

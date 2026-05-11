@@ -1,11 +1,12 @@
 // Cloudflare Worker environment bindings and shared DB row types.
 
-import type { D1Database, SendEmail } from "@cloudflare/workers-types";
+import type { D1Database, R2Bucket, SendEmail } from "@cloudflare/workers-types";
 
 // ---- Cloudflare Worker environment ----
 
 export interface Env {
   DB: D1Database;
+  FILES: R2Bucket;
   SEND_EMAIL: SendEmail;
 
   // Secrets / vars (set via wrangler secret put or dashboard)
