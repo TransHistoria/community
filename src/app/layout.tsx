@@ -66,52 +66,14 @@ export default function RootLayout({
           pathCandidate = bp + pathCandidate;
         }
 
-        var mapClientRoute = function (inputPath) {
-          var parsed = new URL(inputPath, location.origin);
-          var pathname = parsed.pathname;
-          var search = parsed.search || "";
+        var localPathCandidate = bp && pathCandidate.startsWith(bp + "/")
+          ? pathCandidate.slice(bp.length)
+          : pathCandidate;
+        if (/^\/events\/[^/]+(?:\/(?:manage|edit|register))?$/.test(localPathCandidate) || /^\/u\/[^/]+$/.test(localPathCandidate)) {
+          return;
+        }
 
-          var stripBasePath = function (value) {
-            if (!bp) return value;
-            if (value === bp) return "/";
-            if (value.startsWith(bp + "/")) return value.slice(bp.length);
-            return value;
-          };
-          var withBasePath = function (value) {
-            if (!bp || value === bp || value.startsWith(bp + "/")) return value;
-            return bp + value;
-          };
-
-          var localPath = stripBasePath(pathname);
-          var eventMatch = localPath.match(/^\/events\/([^/]+)$/);
-          if (eventMatch) {
-            return withBasePath("/events?slug=" + encodeURIComponent(eventMatch[1]));
-          }
-
-          var registerMatch = localPath.match(/^\/events\/([^/]+)\/register$/);
-          if (registerMatch) {
-            return withBasePath("/events/register?slug=" + encodeURIComponent(registerMatch[1]));
-          }
-
-          var editMatch = localPath.match(/^\/events\/([^/]+)\/edit$/);
-          if (editMatch) {
-            return withBasePath("/events/edit?slug=" + encodeURIComponent(editMatch[1]));
-          }
-
-          var manageMatch = localPath.match(/^\/events\/([^/]+)\/manage$/);
-          if (manageMatch) {
-            return withBasePath("/events/manage?slug=" + encodeURIComponent(manageMatch[1]));
-          }
-
-          var userMatch = localPath.match(/^\/u\/([^/]+)$/);
-          if (userMatch) {
-            return withBasePath("/u?handle=" + encodeURIComponent(userMatch[1]));
-          }
-
-          return pathname + search;
-        };
-
-        var targetUrl = new URL(mapClientRoute(pathCandidate), location.origin);
+        var targetUrl = new URL(pathCandidate, location.origin);
         if (targetUrl.origin !== location.origin) return;
 
         history.replaceState(null, "", targetUrl.pathname + targetUrl.search + targetUrl.hash);

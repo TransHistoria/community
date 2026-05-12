@@ -51,7 +51,14 @@ type ApiReg = {
 export default function ManageEventPageClient() {
   const params = useParams<{ slug?: string }>();
   const searchParams = useSearchParams();
-  const slug = params.slug ?? searchParams.get("slug") ?? "";
+  const queryRouteSlug = React.useMemo(() => {
+    for (const [key] of searchParams.entries()) {
+      const m = key.match(/^events\/([^/]+)\/manage$/);
+      if (m) return m[1];
+    }
+    return "";
+  }, [searchParams]);
+  const slug = params.slug ?? searchParams.get("slug") ?? queryRouteSlug ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [regs, setRegs] = React.useState<ApiReg[]>([]);

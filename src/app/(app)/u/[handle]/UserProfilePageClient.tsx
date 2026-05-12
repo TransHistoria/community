@@ -22,7 +22,14 @@ import { toQueryRoute } from "@/lib/query-routing";
 export default function UserProfilePageClient() {
   const params = useParams<{ handle?: string }>();
   const searchParams = useSearchParams();
-  const handle = params.handle ?? searchParams.get("handle") ?? "";
+  const queryRouteHandle = React.useMemo(() => {
+    for (const [key] of searchParams.entries()) {
+      const m = key.match(/^u\/([^/]+)$/);
+      if (m) return m[1];
+    }
+    return "";
+  }, [searchParams]);
+  const handle = params.handle ?? searchParams.get("handle") ?? queryRouteHandle ?? "";
   const { user } = useAuth();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [notFound, setNotFound] = React.useState(false);

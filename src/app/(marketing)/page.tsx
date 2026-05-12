@@ -1,13 +1,41 @@
 "use client";
+import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Users, Lock, Sparkles, type LucideIcon } from "lucide-react";
 import { toQueryRoute } from "@/lib/query-routing";
+import EventDetailPageClient from "../(app)/events/[slug]/EventDetailPageClient";
+import ManageEventPageClient from "../(app)/events/[slug]/manage/ManageEventPageClient";
+import EditEventPageClient from "../(app)/events/[slug]/edit/EditEventPageClient";
+import RegisterPageClient from "../(app)/events/[slug]/register/RegisterPageClient";
+import UserProfilePageClient from "../(app)/u/[handle]/UserProfilePageClient";
 
 export default function HomePage() {
+  return (
+    <React.Suspense>
+      <HomePageInner />
+    </React.Suspense>
+  );
+}
+
+function HomePageInner() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const queryRoutePath = React.useMemo(() => {
+    for (const [key] of searchParams.entries()) {
+      if (key) return `/${key}`;
+    }
+    return "";
+  }, [searchParams]);
+
+  if (/^\/events\/[^/]+\/manage$/.test(queryRoutePath)) return <ManageEventPageClient />;
+  if (/^\/events\/[^/]+\/edit$/.test(queryRoutePath)) return <EditEventPageClient />;
+  if (/^\/events\/[^/]+\/register$/.test(queryRoutePath)) return <RegisterPageClient />;
+  if (/^\/events\/[^/]+$/.test(queryRoutePath)) return <EventDetailPageClient />;
+  if (/^\/u\/[^/]+$/.test(queryRoutePath)) return <UserProfilePageClient />;
 
   return (
     <div className="space-y-24 py-6 md:py-12">

@@ -44,7 +44,14 @@ function regStatusLabel(s: string) {
 export default function EventDetailPageClient() {
   const params = useParams<{ slug?: string }>();
   const searchParams = useSearchParams();
-  const slug = params.slug ?? searchParams.get("slug") ?? "";
+  const queryRouteSlug = React.useMemo(() => {
+    for (const [key] of searchParams.entries()) {
+      const m = key.match(/^events\/([^/]+)$/);
+      if (m) return m[1];
+    }
+    return "";
+  }, [searchParams]);
+  const slug = params.slug ?? searchParams.get("slug") ?? queryRouteSlug ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [notFound, setNotFound] = React.useState(false);
