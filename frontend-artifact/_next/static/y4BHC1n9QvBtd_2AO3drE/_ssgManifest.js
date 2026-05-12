@@ -1,1 +1,0 @@
-self.__SSG_MANIFEST=new Set(["\u002Fevents\u002F[slug]","\u002Fevents\u002F[slug]\u002Fedit","\u002Fevents\u002F[slug]\u002Fmanage","\u002Fevents\u002F[slug]\u002Fregister","\u002Fu\u002F[handle]"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
