@@ -20,6 +20,15 @@ import EventDetailPageClient from "./[slug]/EventDetailPageClient";
 const ALL_FORMATS = ["ONLINE", "OFFLINE", "HYBRID"] as const;
 
 function EventsPageInner() {
+  const searchParams = useSearchParams();
+  const slug = searchParams.get("slug") ?? undefined;
+  if (slug) {
+    return <EventDetailPageClient />;
+  }
+  return <EventsListPageInner />;
+}
+
+function EventsListPageInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [events, setEvents] = React.useState<Event[]>([]);
@@ -29,11 +38,6 @@ function EventsPageInner() {
   const fmt = searchParams.get("format") ?? undefined;
   const city = searchParams.get("city") ?? undefined;
   const q = searchParams.get("q") ?? undefined;
-  const slug = searchParams.get("slug") ?? undefined;
-
-  if (slug) {
-    return <EventDetailPageClient />;
-  }
 
   React.useEffect(() => {
     api.events
