@@ -42,7 +42,33 @@ export default function RootLayout({
 }) {
   const locale = process.env.NEXT_PUBLIC_APP_LOCALE ?? "zh-CN";
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-  const recoverFromPathQueryScript = `(function(){try{var raw=location.search||'';if(!raw||raw==='?')return;var p='';if(raw.startsWith('?path=')){p=new URLSearchParams(raw).get('path')||'';}else{p=decodeURIComponent(raw.slice(1));if(!p.startsWith('/'))p='/'+p;}if(!p||!p.startsWith('/')||p.startsWith('//'))return;var bp=${JSON.stringify(basePath)};if(bp&&p!==bp&&!p.startsWith(bp+'/'))p=bp+p;history.replaceState(null,'',p);}catch(e){}})();`;
+  const recoverFromPathQueryScript = `
+    (function () {
+      try {
+        var raw = location.search || "";
+        if (!raw || raw === "?") return;
+
+        var pathCandidate = "";
+        if (raw.startsWith("?path=")) {
+          pathCandidate = new URLSearchParams(raw).get("path") || "";
+        } else {
+          pathCandidate = decodeURIComponent(raw.slice(1));
+          if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
+        }
+        if (!pathCandidate || !pathCandidate.startsWith("/") || pathCandidate.startsWith("//")) return;
+
+        var bp = ${JSON.stringify(basePath)};
+        if (bp && pathCandidate !== bp && !pathCandidate.startsWith(bp + "/")) {
+          pathCandidate = bp + pathCandidate;
+        }
+
+        var targetUrl = new URL(pathCandidate, location.origin);
+        if (targetUrl.origin !== location.origin) return;
+
+        history.replaceState(null, "", targetUrl.pathname + targetUrl.search + targetUrl.hash);
+      } catch (e) {}
+    })();
+  `;
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>

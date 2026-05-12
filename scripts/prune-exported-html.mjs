@@ -10,6 +10,7 @@ async function copyArtifact(dir) {
     entries.map(async (entry) => {
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.relative(OUT_DIR, fullPath);
+      const normalizedRelativePath = relativePath.split(path.sep).join("/");
       const artifactPath = path.join(ARTIFACT_DIR, relativePath);
 
       if (entry.isDirectory()) {
@@ -20,7 +21,7 @@ async function copyArtifact(dir) {
       if (!entry.isFile()) {
         return;
       }
-      if (fullPath.endsWith(".html") && fullPath !== path.join(OUT_DIR, "index.html")) {
+      if (fullPath.endsWith(".html") && normalizedRelativePath !== "index.html") {
         return;
       }
       await cp(fullPath, artifactPath);
