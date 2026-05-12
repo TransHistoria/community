@@ -493,6 +493,12 @@ export const api = {
 
     sendTestEmail: (to?: string) =>
       post<{ ok: boolean }>("/api/admin/test-email", to ? { to } : {}),
+
+    testTurnstile: (turnstileToken?: string) =>
+      post<{ ok: boolean; enforced?: boolean; message?: string }>(
+        "/api/admin/test-turnstile",
+        turnstileToken ? { turnstileToken } : {},
+      ),
   },
 
   // Files

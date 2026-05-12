@@ -100,4 +100,3 @@ export function TurnstileWidget({
 
   return <div ref={containerRef} className="flex justify-center" />;
 }
-

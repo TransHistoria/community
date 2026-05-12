@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { Env, Variables, UserRow, ReportRow, AuditLogRow } from "@/types";
 import { requireAuth, requireTier } from "@/middleware/auth";
 import { newId } from "@/lib/utils";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 import { sendTestEmail } from "@/email/sender";
 
 const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -189,6 +190,28 @@ admin.post("/test-email", async (c) => {
 
   await auditLog(c.env.DB, userId, "ADMIN_TEST_EMAIL", "System", userId, { to });
   return c.json({ ok: true });
+});
+
+// POST /api/admin/test-turnstile — verify current Turnstile configuration
+admin.post("/test-turnstile", async (c) => {
+  const userId = c.get("userId")!;
+  const enforced = Boolean((c.env.TURNSTILE_SECRET_KEY ?? "").trim());
+  if (!enforced) {
+    return c.json({ ok: true, enforced: false, message: "未配置 TURNSTILE_SECRET_KEY" });
+  }
+
+  const body = await c.req
+    .json<{ turnstileToken?: string }>()
+    .catch((): { turnstileToken?: string } => ({}));
+  const check = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (!check.ok) return c.json({ error: check.error }, 400);
+
+  await auditLog(c.env.DB, userId, "ADMIN_TEST_TURNSTILE", "System", userId, { ok: true });
+  return c.json({ ok: true, enforced: true });
 });
 
 // ---- Audit Log ----
