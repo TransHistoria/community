@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canRegister, canViewEvent } from "@/lib/access";
@@ -31,7 +31,9 @@ type ApiEvent = {
 };
 
 export default function RegisterPageClient() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ slug?: string }>();
+  const searchParams = useSearchParams();
+  const slug = params.slug ?? searchParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [notFound, setNotFound] = React.useState(false);

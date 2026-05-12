@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEditEvent } from "@/lib/access";
@@ -49,7 +49,9 @@ type ApiReg = {
 };
 
 export default function ManageEventPageClient() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ slug?: string }>();
+  const searchParams = useSearchParams();
+  const slug = params.slug ?? searchParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [regs, setRegs] = React.useState<ApiReg[]>([]);

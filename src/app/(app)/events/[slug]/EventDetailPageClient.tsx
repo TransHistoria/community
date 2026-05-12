@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewEvent, canViewEventDetails, canEditEvent, canRegister } from "@/lib/access";
@@ -42,7 +42,9 @@ function regStatusLabel(s: string) {
 }
 
 export default function EventDetailPageClient() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ slug?: string }>();
+  const searchParams = useSearchParams();
+  const slug = params.slug ?? searchParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [notFound, setNotFound] = React.useState(false);

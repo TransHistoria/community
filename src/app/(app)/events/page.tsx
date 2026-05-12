@@ -15,6 +15,7 @@ import { ALL_CATEGORIES, CATEGORY_LABEL, FORMAT_LABEL } from "@/components/event
 import type { EventCategory } from "@/lib/enums";
 import { Plus } from "lucide-react";
 import { toQueryRoute } from "@/lib/query-routing";
+import EventDetailPageClient from "./[slug]/EventDetailPageClient";
 
 const ALL_FORMATS = ["ONLINE", "OFFLINE", "HYBRID"] as const;
 
@@ -28,6 +29,11 @@ function EventsPageInner() {
   const fmt = searchParams.get("format") ?? undefined;
   const city = searchParams.get("city") ?? undefined;
   const q = searchParams.get("q") ?? undefined;
+  const slug = searchParams.get("slug") ?? undefined;
+
+  if (slug) {
+    return <EventDetailPageClient />;
+  }
 
   React.useEffect(() => {
     api.events

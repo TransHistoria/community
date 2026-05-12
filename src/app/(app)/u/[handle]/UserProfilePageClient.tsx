@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api, type UserProfile } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewContact } from "@/lib/access";
@@ -20,7 +20,9 @@ import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
 import { toQueryRoute } from "@/lib/query-routing";
 
 export default function UserProfilePageClient() {
-  const { handle } = useParams<{ handle: string }>();
+  const params = useParams<{ handle?: string }>();
+  const searchParams = useSearchParams();
+  const handle = params.handle ?? searchParams.get("handle") ?? "";
   const { user } = useAuth();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [notFound, setNotFound] = React.useState(false);
