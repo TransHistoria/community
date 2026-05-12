@@ -18,6 +18,13 @@ import MeRegistrationsPage from "../(app)/me/registrations/page";
 import MeInvitesPage from "../(app)/me/invites/page";
 import MeBlocksPage from "../(app)/me/blocks/page";
 import NotificationsPage from "../(app)/notifications/page";
+import AdminLayout from "../admin/layout";
+import AdminApplicationsPage from "../admin/applications/page";
+import AdminReportsPage from "../admin/reports/page";
+import AdminUsersPage from "../admin/users/page";
+import AdminAuditPage from "../admin/audit/page";
+import AdminSettingsPage from "../admin/settings/page";
+import SignUpPageClient from "../(auth)/sign-up/SignUpPageClient";
 import EventDetailPageClient from "../(app)/events/[slug]/EventDetailPageClient";
 import ManageEventPageClient from "../(app)/events/[slug]/manage/ManageEventPageClient";
 import EditEventPageClient from "../(app)/events/[slug]/edit/EditEventPageClient";
@@ -58,6 +65,13 @@ function HomePageInner() {
   const isMeInvites = queryRoutePath === "/me/invites";
   const isMeBlocks = queryRoutePath === "/me/blocks";
   const isNotifications = queryRoutePath === "/notifications";
+  const isAdminIndex = queryRoutePath === "/admin";
+  const isAdminApplications = queryRoutePath === "/admin/applications";
+  const isAdminReports = queryRoutePath === "/admin/reports";
+  const isAdminUsers = queryRoutePath === "/admin/users";
+  const isAdminAudit = queryRoutePath === "/admin/audit";
+  const isAdminSettings = queryRoutePath === "/admin/settings";
+  const isSignUp = queryRoutePath === "/sign-up";
 
   if (isEventsIndex) return <EventsPage />;
   if (isEventsNew) return <NewEventPage />;
@@ -74,6 +88,42 @@ function HomePageInner() {
   if (isMeInvites) return <MeInvitesPage />;
   if (isMeBlocks) return <MeBlocksPage />;
   if (isNotifications) return <NotificationsPage />;
+  if (isAdminIndex || isAdminApplications) {
+    return (
+      <AdminLayout>
+        <AdminApplicationsPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminReports) {
+    return (
+      <AdminLayout>
+        <AdminReportsPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminUsers) {
+    return (
+      <AdminLayout>
+        <AdminUsersPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminAudit) {
+    return (
+      <AdminLayout>
+        <AdminAuditPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminSettings) {
+    return (
+      <AdminLayout>
+        <AdminSettingsPage />
+      </AdminLayout>
+    );
+  }
+  if (isSignUp) return <SignUpPageClient />;
   if (isUserDetail) return <UserProfilePageClient />;
 
   return (
