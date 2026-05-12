@@ -60,7 +60,11 @@ export default function RootLayout({
         pathCandidate = safeDecode(raw.slice(1));
         if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
         if (!pathCandidate.startsWith("/") || pathCandidate.startsWith("//")) return;
-        if (!pathCandidate.startsWith("/events")) return;
+        if (
+          !pathCandidate.startsWith("/events") &&
+          !pathCandidate.startsWith("/me") &&
+          !pathCandidate.startsWith("/u/")
+        ) return;
 
         var bp = ${JSON.stringify(basePath)};
         if (bp && pathCandidate !== bp && !pathCandidate.startsWith(bp + "/")) {
