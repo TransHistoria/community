@@ -5,6 +5,7 @@ import { Logo } from "./Logo";
 import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/contexts/AuthContext";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export function TopBar() {
   const user = useCurrentUser();
@@ -16,7 +17,7 @@ export function TopBar() {
           <Logo />
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <Link
-              href="/events"
+              href={toQueryRoute("/events")}
               className="text-ink-muted hover:text-ink transition-colors"
             >
               活动

@@ -15,6 +15,7 @@ import { RegistrationActions } from "./RegistrationActions";
 import { CancelEventButton } from "./CancelEventButton";
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { toQueryRoute } from "@/lib/query-routing";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "待审核",
@@ -88,10 +89,10 @@ export default function ManageEventPageClient() {
         actions={
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <Link href={`/events/${event.slug}`}>查看活动</Link>
+              <Link href={toQueryRoute(`/events/${event.slug}`)}>查看活动</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/events/${event.slug}/edit`}>编辑</Link>
+              <Link href={toQueryRoute(`/events/${event.slug}/edit`)}>编辑</Link>
             </Button>
             {event.status !== "CANCELLED" ? (
               <CancelEventButton eventId={event.id} onCancelled={loadData} />

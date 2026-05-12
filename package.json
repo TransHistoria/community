@@ -5,7 +5,7 @@
   "description": "私域跨性别社群活动发布与报名平台",
   "scripts": {
     "dev": "next dev",
-    "frontend": "next build && node scripts/prune-exported-html.mjs",
+    "frontend": "next build && node scripts/build-frontend-artifact.mjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",

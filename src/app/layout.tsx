@@ -46,7 +46,7 @@ export default function RootLayout({
     (function () {
       try {
         var raw = location.search || "";
-        if (!raw || raw === "?") return;
+        if (!raw || raw === "?" || !raw.startsWith("?events")) return;
 
         var pathCandidate = "";
         var safeDecode = function (value) {
@@ -57,13 +57,10 @@ export default function RootLayout({
           }
         };
 
-        if (raw.startsWith("?path=")) {
-          pathCandidate = new URLSearchParams(raw).get("path") || "";
-        } else {
-          pathCandidate = safeDecode(raw.slice(1));
-          if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
-        }
+        pathCandidate = safeDecode(raw.slice(1));
+        if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
         if (!pathCandidate.startsWith("/") || pathCandidate.startsWith("//")) return;
+        if (!pathCandidate.startsWith("/events")) return;
 
         var bp = ${JSON.stringify(basePath)};
         if (bp && pathCandidate !== bp && !pathCandidate.startsWith(bp + "/")) {
@@ -80,8 +77,8 @@ export default function RootLayout({
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>
-        {/* Query-route recovery for static SPA entry: load `/?event/1` (or
-            `/?path=/event/1`) and replace the URL before Next.js initialises. */}
+        {/* Query-route recovery for static SPA entry: load `/?events/1` and
+            replace the URL before Next.js initialises. */}
         <script dangerouslySetInnerHTML={{ __html: recoverFromPathQueryScript }} />
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>

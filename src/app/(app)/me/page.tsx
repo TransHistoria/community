@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatTimeRange, relativeTime } from "@/lib/utils";
 import { TierBadge } from "@/components/user/TierBadge";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type Registration = {
   id: string;
@@ -98,7 +99,7 @@ export default function MeOverviewPage() {
             <CardContent className="py-10 text-center text-sm text-ink-muted">
               暂时没有即将到来的活动。
               <Button asChild variant="link" className="ml-1">
-                <Link href="/events">浏览活动</Link>
+                <Link href={toQueryRoute("/events")}>浏览活动</Link>
               </Button>
             </CardContent>
           </Card>
@@ -109,7 +110,7 @@ export default function MeOverviewPage() {
                 <CardContent className="flex items-center justify-between gap-4 py-4">
                   <div className="space-y-1">
                     <div className="font-medium">
-                      <Link href={`/events/${r.slug}`} className="hover:text-trans-blue-deep">
+                      <Link href={toQueryRoute(`/events/${r.slug}`)} className="hover:text-trans-blue-deep">
                         {r.title}
                       </Link>
                     </div>

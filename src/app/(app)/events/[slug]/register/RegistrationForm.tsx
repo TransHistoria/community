@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast-context";
 import { api } from "@/lib/api";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type Question = {
   id: string;
@@ -53,7 +54,7 @@ export function RegistrationForm({
               : "已提交，等待审核",
         variant: "success",
       });
-      router.push(`/events/${slug}`);
+      router.push(toQueryRoute(`/events/${slug}`));
     } else {
       toast({ title: "报名失败", variant: "danger" });
     }

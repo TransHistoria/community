@@ -5,6 +5,7 @@ import { CATEGORY_LABEL, FORMAT_LABEL } from "./event-config";
 import { formatTimeRange, relativeTime } from "@/lib/utils";
 import { MapPin, Video, Calendar } from "lucide-react";
 import type { Event } from "@/lib/api";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type CardEvent = Pick<
   Event,
@@ -29,7 +30,7 @@ export function EventCard({ event }: { event: CardEvent }) {
   const cancelled = event.status === "CANCELLED";
 
   return (
-    <Link href={`/events/${event.slug}`} className="block group">
+    <Link href={toQueryRoute(`/events/${event.slug}`)} className="block group">
       <Card className="h-full transition-all group-hover:shadow-lift group-hover:-translate-y-0.5">
         <CardContent className="pt-6 space-y-3">
           <div className="flex items-center gap-2 flex-wrap text-xs">

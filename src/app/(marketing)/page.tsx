@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Users, Lock, Sparkles, type LucideIcon } from "lucide-react";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -31,9 +32,9 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             {user ? (
-              <Button size="lg" asChild>
-                <Link href="/events">浏览活动</Link>
-              </Button>
+                <Button size="lg" asChild>
+                  <Link href={toQueryRoute("/events")}>浏览活动</Link>
+                </Button>
             ) : (
               <>
                 <Button size="lg" asChild>

@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ALL_CATEGORIES, CATEGORY_LABEL, FORMAT_LABEL } from "@/components/event/event-config";
 import type { EventCategory } from "@/lib/enums";
 import { Plus } from "lucide-react";
+import { toQueryRoute } from "@/lib/query-routing";
 
 const ALL_FORMATS = ["ONLINE", "OFFLINE", "HYBRID"] as const;
 
@@ -49,8 +50,8 @@ function EventsPageInner() {
         description="按分类与形式浏览。线下活动的精确地点在报名通过后可见。"
         actions={
           canCreateEvent(user) ? (
-            <Button asChild>
-              <Link href="/events/new">
+              <Button asChild>
+              <Link href={toQueryRoute("/events/new")}>
                 <Plus className="h-4 w-4" /> 创建活动
               </Link>
             </Button>
@@ -60,11 +61,11 @@ function EventsPageInner() {
 
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
-          <FilterPill href={fmt ? `/events?format=${fmt}` : "/events"} active={!cat}>全部分类</FilterPill>
+          <FilterPill href={toQueryRoute(fmt ? `/events?format=${fmt}` : "/events")} active={!cat}>全部分类</FilterPill>
           {ALL_CATEGORIES.map((c) => (
             <FilterPill
               key={c}
-              href={`/events?category=${c}${fmt ? `&format=${fmt}` : ""}`}
+              href={toQueryRoute(`/events?category=${c}${fmt ? `&format=${fmt}` : ""}`)}
               active={cat === c}
             >
               {CATEGORY_LABEL[c as EventCategory]}
@@ -72,11 +73,11 @@ function EventsPageInner() {
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <FilterPill href={cat ? `/events?category=${cat}` : "/events"} active={!fmt}>全部形式</FilterPill>
+          <FilterPill href={toQueryRoute(cat ? `/events?category=${cat}` : "/events")} active={!fmt}>全部形式</FilterPill>
           {ALL_FORMATS.map((f) => (
             <FilterPill
               key={f}
-              href={`/events?format=${f}${cat ? `&category=${cat}` : ""}`}
+              href={toQueryRoute(`/events?format=${f}${cat ? `&category=${cat}` : ""}`)}
               active={fmt === f}
             >
               {FORMAT_LABEL[f]}
@@ -98,7 +99,7 @@ function EventsPageInner() {
           action={
             canCreateEvent(user) ? (
               <Button asChild>
-                <Link href="/events/new">创建一个活动</Link>
+                <Link href={toQueryRoute("/events/new")}>创建一个活动</Link>
               </Button>
             ) : null
           }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast-context";
 import type { Visibility } from "@/lib/enums";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export function ShareExternal({
   slug,
@@ -25,7 +26,7 @@ export function ShareExternal({
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
-      setUrl(`${window.location.origin}/events/${slug}`);
+      setUrl(`${window.location.origin}${toQueryRoute(`/events/${slug}`)}`);
     }
   }, [slug]);
 
