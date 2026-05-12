@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api, type UserProfile } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewContact } from "@/lib/access";
@@ -17,9 +17,16 @@ import { ContactRequestButton } from "./ContactRequestButton";
 import { BlockButton } from "./BlockButton";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 export default function UserProfilePageClient() {
-  const { handle } = useParams<{ handle: string }>();
+  const params = useParams<{ handle?: string }>();
+  const searchParams = useSearchParams();
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteHandle = queryRoute.path.match(/^\/u\/([^/]+)$/)?.[1] ?? "";
+  const isLiteralUserRoute = queryRoute.path === "/u" || queryRoute.path.startsWith("/u/");
+  const routeParams = isLiteralUserRoute ? queryRoute.params : searchParams;
+  const handle = params.handle ?? queryRouteHandle ?? routeParams.get("handle") ?? "";
   const { user } = useAuth();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [notFound, setNotFound] = React.useState(false);
@@ -67,7 +74,7 @@ export default function UserProfilePageClient() {
           ) : null}
           {isSelf ? (
             <Button asChild size="sm" variant="outline">
-              <Link href="/me/profile">编辑主页</Link>
+              <Link href={toQueryRoute("/me/profile")}>编辑主页</Link>
             </Button>
           ) : null}
         </div>

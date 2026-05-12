@@ -11,12 +11,16 @@ import { Input } from "@/components/ui/input";
 import { TierBadge } from "@/components/user/TierBadge";
 import { UserActions } from "./UserActions";
 import { formatDate } from "@/lib/utils";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 type AdminUser = { id: string; handle: string; displayName: string; email: string; tier: string; status: string; created_at: string };
 
 function AdminUsersInner() {
   const searchParams = useSearchParams();
-  const q = searchParams.get("q") ?? "";
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const isLiteralAdminUsersRoute = queryRoute.path === "/admin/users";
+  const routeParams = isLiteralAdminUsersRoute ? queryRoute.params : searchParams;
+  const q = routeParams.get("q") ?? "";
   const [users, setUsers] = React.useState<AdminUser[]>([]);
 
   function load(query: string) {
@@ -28,7 +32,7 @@ function AdminUsersInner() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="管理后台" title="用户管理" />
-      <form action="/admin/users" className="flex gap-2">
+      <form action={toQueryRoute("/admin/users")} className="flex gap-2">
         <Input name="q" defaultValue={q} placeholder="搜索 email / handle / 昵称" className="max-w-sm" />
       </form>
       <div className="space-y-2">
@@ -37,7 +41,7 @@ function AdminUsersInner() {
             <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Link href={`/u/${u.handle}`} className="font-medium hover:text-trans-blue-deep">{u.displayName}</Link>
+                  <Link href={toQueryRoute(`/u/${u.handle}`)} className="font-medium hover:text-trans-blue-deep">{u.displayName}</Link>
                   <span className="text-xs text-ink-subtle">@{u.handle}</span>
                   <TierBadge tier={u.tier} />
                   {u.status !== "ACTIVE" ? (

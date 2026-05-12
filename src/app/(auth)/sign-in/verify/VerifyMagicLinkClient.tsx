@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 export function VerifyMagicLinkClient() {
   const router = useRouter();
@@ -16,7 +17,9 @@ export function VerifyMagicLinkClient() {
   const [message, setMessage] = React.useState("正在验证登录链接…");
 
   React.useEffect(() => {
-    const token = searchParams.get("token")?.trim();
+    const queryRoute = getQueryRoute(searchParams);
+    const routeParams = queryRoute.path === "/sign-in/verify" ? queryRoute.params : searchParams;
+    const token = routeParams.get("token")?.trim();
     if (!token) {
       setStatus("error");
       setMessage("缺少登录令牌，请重新请求登录邮件。");
@@ -29,7 +32,7 @@ export function VerifyMagicLinkClient() {
       .then((res) => {
         if (cancelled) return;
         login(res.token, res.user);
-        router.replace("/me");
+        router.replace(toQueryRoute("/me"));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -54,7 +57,7 @@ export function VerifyMagicLinkClient() {
         <p className="text-sm text-ink-muted">{message}</p>
         {status === "error" ? (
           <Button asChild>
-            <Link href="/sign-in">返回登录页</Link>
+            <Link href={toQueryRoute("/sign-in")}>返回登录页</Link>
           </Button>
         ) : null}
       </CardContent>

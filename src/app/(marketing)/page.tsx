@@ -1,12 +1,188 @@
 "use client";
+import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Users, Lock, Sparkles, type LucideIcon } from "lucide-react";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
+import AuthFrame from "../(auth)/AuthFrame";
+import AboutPageClient from "./about/AboutPageClient";
+import ApplyPageClient from "../(auth)/apply/ApplyPageClient";
+import ApplyPendingPageClient from "../(auth)/apply/pending/ApplyPendingPageClient";
+import SignInPageClient from "../(auth)/sign-in/SignInPageClient";
+import CheckEmailPageClient from "../(auth)/sign-in/check-email/CheckEmailPageClient";
+import VerifySignInPageClient from "../(auth)/sign-in/verify/VerifySignInPageClient";
+import EventsPage from "../(app)/events/page";
+import NewEventPage from "../(app)/events/new/page";
+import MeOverviewPage from "../(app)/me/page";
+import MeProfilePage from "../(app)/me/profile/page";
+import MeSettingsPage from "../(app)/me/settings/page";
+import MeContactsPage from "../(app)/me/contacts/page";
+import MeContactRequestsPage from "../(app)/me/contact-requests/page";
+import MeRegistrationsPage from "../(app)/me/registrations/page";
+import MeInvitesPage from "../(app)/me/invites/page";
+import MeBlocksPage from "../(app)/me/blocks/page";
+import NotificationsPage from "../(app)/notifications/page";
+import AdminLayout from "../admin/layout";
+import AdminApplicationsPage from "../admin/applications/page";
+import AdminReportsPage from "../admin/reports/page";
+import AdminUsersPage from "../admin/users/page";
+import AdminAuditPage from "../admin/audit/page";
+import AdminSettingsPage from "../admin/settings/page";
+import SignUpPageClient from "../(auth)/sign-up/SignUpPageClient";
+import EventDetailPageClient from "../(app)/events/[slug]/EventDetailPageClient";
+import ManageEventPageClient from "../(app)/events/[slug]/manage/ManageEventPageClient";
+import EditEventPageClient from "../(app)/events/[slug]/edit/EditEventPageClient";
+import RegisterPageClient from "../(app)/events/[slug]/register/RegisterPageClient";
+import UserProfilePageClient from "../(app)/u/[handle]/UserProfilePageClient";
 
 export default function HomePage() {
+  return (
+    <React.Suspense>
+      <HomePageInner />
+    </React.Suspense>
+  );
+}
+
+function HomePageInner() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const queryRoutePath = React.useMemo(() => getQueryRoute(searchParams).path, [searchParams]);
+
+  const isEventManage = /^\/events\/[^/]+\/manage$/.test(queryRoutePath);
+  const isEventEdit = /^\/events\/[^/]+\/edit$/.test(queryRoutePath);
+  const isEventRegister = /^\/events\/[^/]+\/register$/.test(queryRoutePath);
+  const isEventDetail = /^\/events\/[^/]+$/.test(queryRoutePath);
+  const isUserDetail = /^\/u\/[^/]+$/.test(queryRoutePath);
+  const isEventsIndex = queryRoutePath === "/events";
+  const isLegacyEventsEdit = queryRoutePath === "/events/edit";
+  const isLegacyEventsManage = queryRoutePath === "/events/manage";
+  const isLegacyEventsRegister = queryRoutePath === "/events/register";
+  const isEventsNew = queryRoutePath === "/events/new";
+  const isLegacyUserDetail = queryRoutePath === "/u";
+  const isMeIndex = queryRoutePath === "/me";
+  const isMeProfile = queryRoutePath === "/me/profile";
+  const isMeSettings = queryRoutePath === "/me/settings";
+  const isMeContacts = queryRoutePath === "/me/contacts";
+  const isMeContactRequests = queryRoutePath === "/me/contact-requests";
+  const isMeRegistrations = queryRoutePath === "/me/registrations";
+  const isMeInvites = queryRoutePath === "/me/invites";
+  const isMeBlocks = queryRoutePath === "/me/blocks";
+  const isNotifications = queryRoutePath === "/notifications";
+  const isAdminIndex = queryRoutePath === "/admin";
+  const isAdminApplications = queryRoutePath === "/admin/applications";
+  const isAdminReports = queryRoutePath === "/admin/reports";
+  const isAdminUsers = queryRoutePath === "/admin/users";
+  const isAdminAudit = queryRoutePath === "/admin/audit";
+  const isAdminSettings = queryRoutePath === "/admin/settings";
+  const isAbout = queryRoutePath === "/about";
+  const isApply = queryRoutePath === "/apply";
+  const isApplyPending = queryRoutePath === "/apply/pending";
+  const isSignIn = queryRoutePath === "/sign-in";
+  const isSignInCheckEmail = queryRoutePath === "/sign-in/check-email";
+  const isSignInVerify = queryRoutePath === "/sign-in/verify";
+  const isSignUp = queryRoutePath === "/sign-up";
+
+  if (isAbout) return <AboutPageClient />;
+  if (isApply) {
+    return (
+      <AuthFrame>
+        <ApplyPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isApplyPending) {
+    return (
+      <AuthFrame>
+        <ApplyPendingPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isSignIn) {
+    return (
+      <AuthFrame>
+        <SignInPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isSignInCheckEmail) {
+    return (
+      <AuthFrame>
+        <CheckEmailPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isSignInVerify) {
+    return (
+      <AuthFrame>
+        <VerifySignInPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isEventsIndex) return <EventsPage />;
+  if (isEventsNew) return <NewEventPage />;
+  if (isLegacyEventsManage) return <ManageEventPageClient />;
+  if (isLegacyEventsEdit) return <EditEventPageClient />;
+  if (isLegacyEventsRegister) return <RegisterPageClient />;
+  if (isEventManage) return <ManageEventPageClient />;
+  if (isEventEdit) return <EditEventPageClient />;
+  if (isEventRegister) return <RegisterPageClient />;
+  if (isEventDetail) return <EventDetailPageClient />;
+  if (isMeIndex) return <MeOverviewPage />;
+  if (isMeProfile) return <MeProfilePage />;
+  if (isMeSettings) return <MeSettingsPage />;
+  if (isMeContacts) return <MeContactsPage />;
+  if (isMeContactRequests) return <MeContactRequestsPage />;
+  if (isMeRegistrations) return <MeRegistrationsPage />;
+  if (isMeInvites) return <MeInvitesPage />;
+  if (isMeBlocks) return <MeBlocksPage />;
+  if (isNotifications) return <NotificationsPage />;
+  if (isAdminIndex || isAdminApplications) {
+    return (
+      <AdminLayout>
+        <AdminApplicationsPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminReports) {
+    return (
+      <AdminLayout>
+        <AdminReportsPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminUsers) {
+    return (
+      <AdminLayout>
+        <AdminUsersPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminAudit) {
+    return (
+      <AdminLayout>
+        <AdminAuditPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminSettings) {
+    return (
+      <AdminLayout>
+        <AdminSettingsPage />
+      </AdminLayout>
+    );
+  }
+  if (isSignUp) {
+    return (
+      <AuthFrame>
+        <SignUpPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isLegacyUserDetail) return <UserProfilePageClient />;
+  if (isUserDetail) return <UserProfilePageClient />;
 
   return (
     <div className="space-y-24 py-6 md:py-12">
@@ -31,16 +207,16 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             {user ? (
-              <Button size="lg" asChild>
-                <Link href="/events">浏览活动</Link>
-              </Button>
+                <Button size="lg" asChild>
+                  <Link href={toQueryRoute("/events")}>浏览活动</Link>
+                </Button>
             ) : (
               <>
                 <Button size="lg" asChild>
-                  <Link href="/sign-up">加入社群</Link>
+                  <Link href={toQueryRoute("/sign-up")}>加入社群</Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href="/sign-in">已有账号</Link>
+                  <Link href={toQueryRoute("/sign-in")}>已有账号</Link>
                 </Button>
               </>
             )}
@@ -146,10 +322,10 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <Button size="lg" asChild>
-              <Link href="/sign-up">开始加入</Link>
+              <Link href={toQueryRoute("/sign-up")}>开始加入</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/about">先了解一下</Link>
+              <Link href={toQueryRoute("/about")}>先了解一下</Link>
             </Button>
           </div>
         </section>

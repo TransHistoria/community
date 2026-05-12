@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEditEvent } from "@/lib/access";
@@ -15,6 +15,7 @@ import { RegistrationActions } from "./RegistrationActions";
 import { CancelEventButton } from "./CancelEventButton";
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "待审核",
@@ -48,7 +49,13 @@ type ApiReg = {
 };
 
 export default function ManageEventPageClient() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ slug?: string }>();
+  const searchParams = useSearchParams();
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteSlug = queryRoute.path.match(/^\/events\/([^/]+)\/manage$/)?.[1] ?? "";
+  const isLiteralEventsRoute = queryRoute.path === "/events/manage" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
+  const slug = params.slug ?? queryRouteSlug ?? routeParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [regs, setRegs] = React.useState<ApiReg[]>([]);
@@ -88,10 +95,10 @@ export default function ManageEventPageClient() {
         actions={
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <Link href={`/events/${event.slug}`}>查看活动</Link>
+              <Link href={toQueryRoute(`/events/${event.slug}`)}>查看活动</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/events/${event.slug}/edit`}>编辑</Link>
+              <Link href={toQueryRoute(`/events/${event.slug}/edit`)}>编辑</Link>
             </Button>
             {event.status !== "CANCELLED" ? (
               <CancelEventButton eventId={event.id} onCancelled={loadData} />
@@ -119,7 +126,7 @@ export default function ManageEventPageClient() {
                   <Card key={r.id}>
                     <CardContent className="py-4 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <Link href={`/u/${r.user_handle}`} className="flex items-center gap-3 group">
+                        <Link href={toQueryRoute(`/u/${r.user_handle}`)} className="flex items-center gap-3 group">
                           <Avatar>
                             {r.user_avatar ? <AvatarImage src={r.user_avatar} alt="" /> : null}
                             <AvatarFallback>{r.user_name?.charAt(0) ?? "?"}</AvatarFallback>

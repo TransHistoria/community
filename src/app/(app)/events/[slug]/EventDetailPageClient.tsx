@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewEvent, canViewEventDetails, canEditEvent, canRegister } from "@/lib/access";
@@ -15,6 +15,7 @@ import { CommentSection } from "./CommentSection";
 import { CancelMyRegistrationButton } from "./CancelMyRegistrationButton";
 import { CATEGORY_LABEL, EVENT_VISIBILITY_LABEL, FORMAT_LABEL } from "@/components/event/event-config";
 import { formatTimeRange } from "@/lib/utils";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 type ApiEvent = {
   id: string;
@@ -41,7 +42,13 @@ function regStatusLabel(s: string) {
 }
 
 export default function EventDetailPageClient() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ slug?: string }>();
+  const searchParams = useSearchParams();
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteSlug = queryRoute.path.match(/^\/events\/([^/]+)$/)?.[1] ?? "";
+  const isLiteralEventsRoute = queryRoute.path === "/events" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
+  const slug = params.slug ?? queryRouteSlug ?? routeParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [notFound, setNotFound] = React.useState(false);
@@ -88,7 +95,7 @@ export default function EventDetailPageClient() {
           <p>已报名 {event.reg_count ?? 0}{event.capacity ? ` / ${event.capacity}` : ""}</p>
           {canManage ? (
             <Button asChild variant="outline" size="sm">
-              <Link href={`/events/${event.slug}/manage`}>管理活动</Link>
+              <Link href={toQueryRoute(`/events/${event.slug}/manage`)}>管理活动</Link>
             </Button>
           ) : null}
         </CardContent>
@@ -114,7 +121,7 @@ export default function EventDetailPageClient() {
               </div>
             ) : canRegisterRes.ok ? (
               <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link href={`/events/${event.slug}/register`}>报名</Link>
+                <Link href={toQueryRoute(`/events/${event.slug}/register`)}>报名</Link>
               </Button>
             ) : (
               <p className="text-sm text-ink-muted">{canRegisterRes.reason}</p>

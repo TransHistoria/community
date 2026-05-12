@@ -1,12 +1,7 @@
-import { Suspense } from "react";
-import { VerifyMagicLinkClient } from "./VerifyMagicLinkClient";
+import VerifySignInPageClient from "./VerifySignInPageClient";
 
 export const metadata = { title: "验证登录链接" };
 
 export default function VerifySignInPage() {
-  return (
-    <Suspense>
-      <VerifyMagicLinkClient />
-    </Suspense>
-  );
+  return <VerifySignInPageClient />;
 }

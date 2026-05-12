@@ -25,6 +25,7 @@ import {
 import { eventInputSchema, type EventInput } from "@/lib/validators/event";
 import { api } from "@/lib/api";
 import { Plus, Trash2 } from "lucide-react";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type Question = {
   id: string;
@@ -170,7 +171,7 @@ export function EventForm({
     if (res.ok) {
       toast({ title: mode === "create" ? "已发布" : "已保存", variant: "success" });
       const slug = (res as { slug?: string }).slug;
-      router.push(slug ? `/events/${slug}` : `/events`);
+      router.push(slug ? toQueryRoute(`/events/${slug}`) : toQueryRoute("/events"));
     } else {
       toast({ title: "失败", variant: "danger" });
     }

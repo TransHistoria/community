@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty";
 import { formatTimeRange } from "@/lib/utils";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type Registration = {
   id: string;
@@ -53,7 +54,7 @@ export default function MeRegistrationsPage() {
               <Card key={r.id}>
                 <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
                   <div className="space-y-1">
-                    <Link href={`/events/${r.slug}`} className="text-sm font-medium hover:text-trans-blue-deep">
+                    <Link href={toQueryRoute(`/events/${r.slug}`)} className="text-sm font-medium hover:text-trans-blue-deep">
                       {r.title}
                     </Link>
                     <div className="text-xs text-ink-muted">
