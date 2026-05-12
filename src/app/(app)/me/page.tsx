@@ -45,7 +45,7 @@ export default function MeOverviewPage() {
         .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
       setUpcoming(up.slice(0, 5));
 
-      const sorted = [...all].sort(
+      const sorted = all.sort(
         (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime(),
       );
       setAllRegs(sorted.slice(0, 5));

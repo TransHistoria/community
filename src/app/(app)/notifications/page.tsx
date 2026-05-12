@@ -27,9 +27,17 @@ function parsePayload(raw?: string | null): Payload {
 
 function notificationText(n: Notification): { title: string; href?: string } {
   const p = parsePayload(n.payload);
-  const eventTitle = typeof p.eventTitle === "string" ? p.eventTitle : (typeof p.title === "string" ? p.title : undefined);
-  const eventSlug = typeof p.eventSlug === "string" ? p.eventSlug : (typeof p.slug === "string" ? p.slug : undefined);
-  const requesterHandle = typeof p.requesterHandle === "string" ? p.requesterHandle : undefined;
+
+  function strField(...keys: string[]): string | undefined {
+    for (const key of keys) {
+      if (typeof p[key] === "string") return p[key] as string;
+    }
+    return undefined;
+  }
+
+  const eventTitle = strField("eventTitle", "title");
+  const eventSlug = strField("eventSlug", "slug");
+  const requesterHandle = strField("requesterHandle");
   const eventHref = eventSlug ? toQueryRoute(`/events/${eventSlug}`) : undefined;
 
   switch (n.kind) {
