@@ -49,10 +49,18 @@ export default function RootLayout({
         if (!raw || raw === "?") return;
 
         var pathCandidate = "";
+        var safeDecode = function (value) {
+          try {
+            return decodeURIComponent(value);
+          } catch (e) {
+            return "";
+          }
+        };
+
         if (raw.startsWith("?path=")) {
           pathCandidate = new URLSearchParams(raw).get("path") || "";
         } else {
-          pathCandidate = decodeURIComponent(raw.slice(1));
+          pathCandidate = safeDecode(raw.slice(1));
           if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
         }
         if (!pathCandidate || !pathCandidate.startsWith("/") || pathCandidate.startsWith("//")) return;

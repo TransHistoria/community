@@ -21,7 +21,7 @@ async function copyArtifact(dir) {
       if (!entry.isFile()) {
         return;
       }
-      if (fullPath.endsWith(".html") && normalizedRelativePath !== "index.html") {
+      if (entry.name.endsWith(".html") && normalizedRelativePath !== "index.html") {
         return;
       }
       await cp(fullPath, artifactPath);
