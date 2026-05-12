@@ -33,10 +33,17 @@ function ensureTurnstileScript(): Promise<void> {
   turnstileScriptPromise = new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT}"]`);
     if (existing) {
+      if (window.turnstile) {
+        resolve();
+        return;
+      }
       existing.addEventListener("load", () => resolve(), { once: true });
       existing.addEventListener("error", () => reject(new Error("Turnstile script load failed")), {
         once: true,
       });
+      window.setTimeout(() => {
+        if (window.turnstile) resolve();
+      }, 300);
       return;
     }
     const script = document.createElement("script");
@@ -57,7 +64,10 @@ export function TurnstileWidget({
   onTokenChange: (token: string | null) => void;
   resetSignal?: number;
 }) {
-  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+  const siteKey =
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ??
+    process.env.TURNSTILE_SITE_KEY ??
+    "";
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const widgetIdRef = React.useRef<string | null>(null);
 
