@@ -17,19 +17,16 @@ import { ContactRequestButton } from "./ContactRequestButton";
 import { BlockButton } from "./BlockButton";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 export default function UserProfilePageClient() {
   const params = useParams<{ handle?: string }>();
   const searchParams = useSearchParams();
-  const queryRouteHandle = React.useMemo(() => {
-    for (const [key] of searchParams.entries()) {
-      const m = key.match(/^u\/([^/]+)$/);
-      if (m) return m[1];
-    }
-    return "";
-  }, [searchParams]);
-  const handle = params.handle ?? searchParams.get("handle") ?? queryRouteHandle ?? "";
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteHandle = queryRoute.path.match(/^\/u\/([^/]+)$/)?.[1] ?? "";
+  const isLiteralUserRoute = queryRoute.path === "/u" || queryRoute.path.startsWith("/u/");
+  const routeParams = isLiteralUserRoute ? queryRoute.params : searchParams;
+  const handle = params.handle ?? queryRouteHandle ?? routeParams.get("handle") ?? "";
   const { user } = useAuth();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [notFound, setNotFound] = React.useState(false);

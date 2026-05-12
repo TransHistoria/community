@@ -14,14 +14,18 @@ import { EmptyState } from "@/components/ui/empty";
 import { ALL_CATEGORIES, CATEGORY_LABEL, FORMAT_LABEL } from "@/components/event/event-config";
 import type { EventCategory } from "@/lib/enums";
 import { Plus } from "lucide-react";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 import EventDetailPageClient from "./[slug]/EventDetailPageClient";
 
 const ALL_FORMATS = ["ONLINE", "OFFLINE", "HYBRID"] as const;
 
 function EventsPageInner() {
   const searchParams = useSearchParams();
-  const slug = searchParams.get("slug") ?? undefined;
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const isLiteralEventsRoute = queryRoute.path === "/events" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
+  const slugFromPath = queryRoute.path.match(/^\/events\/([^/]+)$/)?.[1];
+  const slug = slugFromPath ?? routeParams.get("slug") ?? undefined;
   if (slug) {
     return <EventDetailPageClient />;
   }
@@ -31,13 +35,16 @@ function EventsPageInner() {
 function EventsListPageInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const isLiteralEventsRoute = queryRoute.path === "/events" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
   const [events, setEvents] = React.useState<Event[]>([]);
   const [loadFailed, setLoadFailed] = React.useState(false);
 
-  const cat = searchParams.get("category") ?? undefined;
-  const fmt = searchParams.get("format") ?? undefined;
-  const city = searchParams.get("city") ?? undefined;
-  const q = searchParams.get("q") ?? undefined;
+  const cat = routeParams.get("category") ?? undefined;
+  const fmt = routeParams.get("format") ?? undefined;
+  const city = routeParams.get("city") ?? undefined;
+  const q = routeParams.get("q") ?? undefined;
 
   React.useEffect(() => {
     api.events

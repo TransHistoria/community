@@ -15,7 +15,7 @@ import { CommentSection } from "./CommentSection";
 import { CancelMyRegistrationButton } from "./CancelMyRegistrationButton";
 import { CATEGORY_LABEL, EVENT_VISIBILITY_LABEL, FORMAT_LABEL } from "@/components/event/event-config";
 import { formatTimeRange } from "@/lib/utils";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 type ApiEvent = {
   id: string;
@@ -44,14 +44,11 @@ function regStatusLabel(s: string) {
 export default function EventDetailPageClient() {
   const params = useParams<{ slug?: string }>();
   const searchParams = useSearchParams();
-  const queryRouteSlug = React.useMemo(() => {
-    for (const [key] of searchParams.entries()) {
-      const m = key.match(/^events\/([^/]+)$/);
-      if (m) return m[1];
-    }
-    return "";
-  }, [searchParams]);
-  const slug = params.slug ?? searchParams.get("slug") ?? queryRouteSlug ?? "";
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteSlug = queryRoute.path.match(/^\/events\/([^/]+)$/)?.[1] ?? "";
+  const isLiteralEventsRoute = queryRoute.path === "/events" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
+  const slug = params.slug ?? queryRouteSlug ?? routeParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [notFound, setNotFound] = React.useState(false);

@@ -15,7 +15,7 @@ import { RegistrationActions } from "./RegistrationActions";
 import { CancelEventButton } from "./CancelEventButton";
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "待审核",
@@ -51,14 +51,11 @@ type ApiReg = {
 export default function ManageEventPageClient() {
   const params = useParams<{ slug?: string }>();
   const searchParams = useSearchParams();
-  const queryRouteSlug = React.useMemo(() => {
-    for (const [key] of searchParams.entries()) {
-      const m = key.match(/^events\/([^/]+)\/manage$/);
-      if (m) return m[1];
-    }
-    return "";
-  }, [searchParams]);
-  const slug = params.slug ?? searchParams.get("slug") ?? queryRouteSlug ?? "";
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteSlug = queryRoute.path.match(/^\/events\/([^/]+)\/manage$/)?.[1] ?? "";
+  const isLiteralEventsRoute = queryRoute.path === "/events/manage" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
+  const slug = params.slug ?? queryRouteSlug ?? routeParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [regs, setRegs] = React.useState<ApiReg[]>([]);

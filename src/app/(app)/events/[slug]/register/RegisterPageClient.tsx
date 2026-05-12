@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { canRegister, canViewEvent } from "@/lib/access";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
+import { getQueryRoute } from "@/lib/query-routing";
 import { RegistrationForm } from "./RegistrationForm";
 import { formatTimeRange } from "@/lib/utils";
 
@@ -33,14 +34,11 @@ type ApiEvent = {
 export default function RegisterPageClient() {
   const params = useParams<{ slug?: string }>();
   const searchParams = useSearchParams();
-  const queryRouteSlug = React.useMemo(() => {
-    for (const [key] of searchParams.entries()) {
-      const m = key.match(/^events\/([^/]+)\/register$/);
-      if (m) return m[1];
-    }
-    return "";
-  }, [searchParams]);
-  const slug = params.slug ?? searchParams.get("slug") ?? queryRouteSlug ?? "";
+  const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
+  const queryRouteSlug = queryRoute.path.match(/^\/events\/([^/]+)\/register$/)?.[1] ?? "";
+  const isLiteralEventsRoute = queryRoute.path === "/events/register" || queryRoute.path.startsWith("/events/");
+  const routeParams = isLiteralEventsRoute ? queryRoute.params : searchParams;
+  const slug = params.slug ?? queryRouteSlug ?? routeParams.get("slug") ?? "";
   const { user } = useAuth();
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [notFound, setNotFound] = React.useState(false);

@@ -41,42 +41,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const locale = process.env.NEXT_PUBLIC_APP_LOCALE ?? "zh-CN";
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-  const recoverFromPathQueryScript = `
-    (function () {
-      try {
-        var raw = location.search || "";
-        if (!raw || raw === "?") return;
-
-        var pathCandidate = "";
-        var safeDecodeURIComponent = function (value) {
-          try {
-            return decodeURIComponent(value);
-          } catch (e) {
-            return "";
-          }
-        };
-
-        pathCandidate = safeDecodeURIComponent(raw.slice(1));
-        if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
-        if (!pathCandidate.startsWith("/") || pathCandidate.startsWith("//")) return;
-
-        var bp = ${JSON.stringify(basePath)};
-        if (bp && pathCandidate !== bp && !pathCandidate.startsWith(bp + "/")) {
-          pathCandidate = bp + pathCandidate;
-        }
-
-        // Keep literal /?... URL; route resolution happens client-side.
-        return;
-      } catch (e) {}
-    })();
-  `;
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>
-        {/* Query-route recovery for static SPA entry: load `/?events/1`, `/?me`,
-            `/?about` etc. and replace the URL before Next.js initialises. */}
-        <script dangerouslySetInnerHTML={{ __html: recoverFromPathQueryScript }} />
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>

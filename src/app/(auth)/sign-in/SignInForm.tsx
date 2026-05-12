@@ -16,6 +16,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const [setupSent, setSetupSent] = React.useState(false);
+  const [showForgotTotp, setShowForgotTotp] = React.useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,9 +97,23 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
       <Button type="submit" className="w-full" disabled={pending} size="lg">
         {pending ? "登录中..." : "使用 TOTP 登录"}
       </Button>
-      <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={onSendSetup}>
-        {pending ? "处理中..." : "发送/重置 TOTP 初始化邮件"}
-      </Button>
+      <div className="space-y-2">
+        <div className="text-center">
+          <button
+            type="button"
+            className="text-xs text-ink-subtle hover:text-ink"
+            disabled={pending}
+            onClick={() => setShowForgotTotp((value) => !value)}
+          >
+            忘记 TOTP？
+          </button>
+        </div>
+        {showForgotTotp ? (
+          <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={onSendSetup}>
+            {pending ? "处理中..." : "发送 TOTP 初始化邮件"}
+          </Button>
+        ) : null}
+      </div>
       <p className="text-xs text-ink-subtle text-center leading-relaxed">
         我们不存储密码，登录使用认证器 6 位动态验证码。
       </p>

@@ -6,7 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Users, Lock, Sparkles, type LucideIcon } from "lucide-react";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
+import AuthFrame from "../(auth)/AuthFrame";
+import AboutPageClient from "./about/AboutPageClient";
+import ApplyPageClient from "../(auth)/apply/ApplyPageClient";
+import ApplyPendingPageClient from "../(auth)/apply/pending/ApplyPendingPageClient";
+import SignInPageClient from "../(auth)/sign-in/SignInPageClient";
+import CheckEmailPageClient from "../(auth)/sign-in/check-email/CheckEmailPageClient";
+import VerifySignInPageClient from "../(auth)/sign-in/verify/VerifySignInPageClient";
 import EventsPage from "../(app)/events/page";
 import NewEventPage from "../(app)/events/new/page";
 import MeOverviewPage from "../(app)/me/page";
@@ -42,12 +49,7 @@ export default function HomePage() {
 function HomePageInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  const queryRoutePath = React.useMemo(() => {
-    for (const [key] of searchParams.entries()) {
-      if (key) return `/${key}`;
-    }
-    return "";
-  }, [searchParams]);
+  const queryRoutePath = React.useMemo(() => getQueryRoute(searchParams).path, [searchParams]);
 
   const isEventManage = /^\/events\/[^/]+\/manage$/.test(queryRoutePath);
   const isEventEdit = /^\/events\/[^/]+\/edit$/.test(queryRoutePath);
@@ -55,7 +57,11 @@ function HomePageInner() {
   const isEventDetail = /^\/events\/[^/]+$/.test(queryRoutePath);
   const isUserDetail = /^\/u\/[^/]+$/.test(queryRoutePath);
   const isEventsIndex = queryRoutePath === "/events";
+  const isLegacyEventsEdit = queryRoutePath === "/events/edit";
+  const isLegacyEventsManage = queryRoutePath === "/events/manage";
+  const isLegacyEventsRegister = queryRoutePath === "/events/register";
   const isEventsNew = queryRoutePath === "/events/new";
+  const isLegacyUserDetail = queryRoutePath === "/u";
   const isMeIndex = queryRoutePath === "/me";
   const isMeProfile = queryRoutePath === "/me/profile";
   const isMeSettings = queryRoutePath === "/me/settings";
@@ -71,10 +77,55 @@ function HomePageInner() {
   const isAdminUsers = queryRoutePath === "/admin/users";
   const isAdminAudit = queryRoutePath === "/admin/audit";
   const isAdminSettings = queryRoutePath === "/admin/settings";
+  const isAbout = queryRoutePath === "/about";
+  const isApply = queryRoutePath === "/apply";
+  const isApplyPending = queryRoutePath === "/apply/pending";
+  const isSignIn = queryRoutePath === "/sign-in";
+  const isSignInCheckEmail = queryRoutePath === "/sign-in/check-email";
+  const isSignInVerify = queryRoutePath === "/sign-in/verify";
   const isSignUp = queryRoutePath === "/sign-up";
 
+  if (isAbout) return <AboutPageClient />;
+  if (isApply) {
+    return (
+      <AuthFrame>
+        <ApplyPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isApplyPending) {
+    return (
+      <AuthFrame>
+        <ApplyPendingPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isSignIn) {
+    return (
+      <AuthFrame>
+        <SignInPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isSignInCheckEmail) {
+    return (
+      <AuthFrame>
+        <CheckEmailPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isSignInVerify) {
+    return (
+      <AuthFrame>
+        <VerifySignInPageClient />
+      </AuthFrame>
+    );
+  }
   if (isEventsIndex) return <EventsPage />;
   if (isEventsNew) return <NewEventPage />;
+  if (isLegacyEventsManage) return <ManageEventPageClient />;
+  if (isLegacyEventsEdit) return <EditEventPageClient />;
+  if (isLegacyEventsRegister) return <RegisterPageClient />;
   if (isEventManage) return <ManageEventPageClient />;
   if (isEventEdit) return <EditEventPageClient />;
   if (isEventRegister) return <RegisterPageClient />;
@@ -123,7 +174,14 @@ function HomePageInner() {
       </AdminLayout>
     );
   }
-  if (isSignUp) return <SignUpPageClient />;
+  if (isSignUp) {
+    return (
+      <AuthFrame>
+        <SignUpPageClient />
+      </AuthFrame>
+    );
+  }
+  if (isLegacyUserDetail) return <UserProfilePageClient />;
   if (isUserDetail) return <UserProfilePageClient />;
 
   return (
