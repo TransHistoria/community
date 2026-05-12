@@ -4,7 +4,6 @@ import path from "node:path";
 const OUT_DIR = "out";
 const keep = new Set([
   path.join(OUT_DIR, "index.html"),
-  path.join(OUT_DIR, "404.html"),
 ]);
 
 async function pruneHtml(dir) {
