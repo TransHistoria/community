@@ -367,6 +367,8 @@ export const api = {
     myRegistrations: () =>
       get<{ registrations: Registration[] }>("/api/users/me/registrations"),
 
+    exportMe: () => get<Record<string, unknown>>("/api/users/me/export"),
+
     // Contacts
     myContacts: () => get<{ contacts: ContactMethod[] }>("/api/users/me/contacts"),
 

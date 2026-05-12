@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
@@ -17,6 +17,7 @@ type AdminUser = { id: string; handle: string; displayName: string; email: strin
 
 function AdminUsersInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
   const isLiteralAdminUsersRoute = queryRoute.path === "/admin/users";
   const routeParams = isLiteralAdminUsersRoute ? queryRoute.params : searchParams;
@@ -29,10 +30,18 @@ function AdminUsersInner() {
 
   React.useEffect(() => { load(q); }, [q]);
 
+  function handleSearch(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const qVal = (form.elements.namedItem("q") as HTMLInputElement).value;
+    const url = qVal ? toQueryRoute(`/admin/users`) + `&q=${encodeURIComponent(qVal)}` : toQueryRoute("/admin/users");
+    router.push(url);
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="管理后台" title="用户管理" />
-      <form action={toQueryRoute("/admin/users")} className="flex gap-2">
+      <form onSubmit={handleSearch} className="flex gap-2">
         <Input name="q" defaultValue={q} placeholder="搜索 email / handle / 昵称" className="max-w-sm" />
       </form>
       <div className="space-y-2">

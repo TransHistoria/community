@@ -16,8 +16,17 @@ type Report = { id: string; status: string; target_type: string; target_id: stri
 export default function AdminReportsPage() {
   const [reports, setReports] = React.useState<Report[]>([]);
   function load() {
-    Promise.all([api.admin.listReports("OPEN"), api.admin.listReports("RESOLVED")])
-      .then(([a, b]) => setReports([...(a.reports as Report[]), ...(b.reports as Report[])]));
+    Promise.all([
+      api.admin.listReports("OPEN"),
+      api.admin.listReports("RESOLVED"),
+      api.admin.listReports("DISMISSED"),
+    ]).then(([a, b, c]) =>
+      setReports([
+        ...(a.reports as Report[]),
+        ...(b.reports as Report[]),
+        ...(c.reports as Report[]),
+      ])
+    );
   }
   React.useEffect(() => { load(); }, []);
 

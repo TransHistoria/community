@@ -15,7 +15,17 @@ export default function AdminApplicationsPage() {
   const [apps, setApps] = React.useState<App[]>([]);
 
   function load() {
-    api.applications.list().then((res: { applications: unknown[] }) => setApps(res.applications as App[]));
+    Promise.all([
+      api.applications.list("PENDING"),
+      api.applications.list("APPROVED"),
+      api.applications.list("REJECTED"),
+    ]).then(([a, b, c]) =>
+      setApps([
+        ...(a.applications as App[]),
+        ...(b.applications as App[]),
+        ...(c.applications as App[]),
+      ])
+    );
   }
   React.useEffect(() => { load(); }, []);
 

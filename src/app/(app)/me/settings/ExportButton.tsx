@@ -2,6 +2,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { api } from "@/lib/api";
 
 export function ExportButton() {
   const [pending, setPending] = React.useState(false);
@@ -12,12 +13,7 @@ export function ExportButton() {
       onClick={async () => {
         setPending(true);
         try {
-          const token = localStorage.getItem("tc_token");
-          const res = await fetch("/api/users/me/export", {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (!res.ok) throw new Error("导出失败");
-          const data = await res.json();
+          const data = await api.users.exportMe();
           const blob = new Blob([JSON.stringify(data, null, 2)], {
             type: "application/json",
           });
