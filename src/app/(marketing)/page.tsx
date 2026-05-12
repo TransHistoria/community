@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +10,23 @@ import { toQueryRoute } from "@/lib/query-routing";
 
 export default function HomePage() {
   const { user } = useAuth();
+  const router = useRouter();
+
+  React.useEffect(() => {
+    const raw = window.location.search || "";
+    if (!raw || raw === "?" || window.location.pathname !== "/") return;
+    const decoded = (() => {
+      try {
+        return decodeURIComponent(raw.slice(1));
+      } catch {
+        return "";
+      }
+    })();
+    if (!decoded) return;
+    const path = decoded.startsWith("/") ? decoded : `/${decoded}`;
+    if (!path.startsWith("/") || path.startsWith("//")) return;
+    router.replace(path);
+  }, [router]);
 
   return (
     <div className="space-y-24 py-6 md:py-12">
