@@ -18,8 +18,9 @@ type EventIndexItem = { id?: string | null; slug?: string | null };
 /**
  * Shared helper used by all /events/[slug]/* pages to produce generateStaticParams.
  * Pre-generates shells only for events that currently exist in the API; any event
- * created after the last build is handled transparently by the 404 → ?_spa= SPA
- * recovery mechanism.  No numeric ID fallbacks — event IDs are CUIDs, not integers.
+ * created after the last build can still be reached via query-route SPA entry
+ * URLs (for example `/?event/1` / `/?path=/event/1`).
+ * No numeric ID fallbacks — event IDs are CUIDs, not integers.
  */
 export async function getEventStaticParams(): Promise<Array<{ slug: string }>> {
   const slugs = new Set<string>(["placeholder"]);

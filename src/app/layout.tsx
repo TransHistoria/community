@@ -41,15 +41,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const locale = process.env.NEXT_PUBLIC_APP_LOCALE ?? "zh-CN";
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const recoverFromPathQueryScript = `(function(){try{var raw=location.search||'';if(!raw||raw==='?')return;var p='';if(raw.startsWith('?path=')){p=new URLSearchParams(raw).get('path')||'';}else{p=decodeURIComponent(raw.slice(1));if(!p.startsWith('/'))p='/'+p;}if(!p||!p.startsWith('/')||p.startsWith('//'))return;var bp=${JSON.stringify(basePath)};if(bp&&p!==bp&&!p.startsWith(bp+'/'))p=bp+p;history.replaceState(null,'',p);}catch(e){}})();`;
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>
-        {/* Runs synchronously before Next.js JS loads: reads the ?_spa= param
-            written by the 404.html redirect script, sets window.__SPA_RECOVERED
-            so the not-found script knows it is running inside the app rather
-            than as a raw GitHub Pages 404, then calls history.replaceState so
-            the router initialises with the correct URL (no RSC fetch needed). */}
-        <script dangerouslySetInnerHTML={{ __html: "(function(){var p=new URLSearchParams(location.search).get('_spa');if(p){window.__SPA_RECOVERED=p;history.replaceState(null,'',p);}})();" }} />
+        {/* Query-route recovery for static SPA entry: load `/?event/1` (or
+            `/?path=/event/1`) and replace the URL before Next.js initialises. */}
+        <script dangerouslySetInnerHTML={{ __html: recoverFromPathQueryScript }} />
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
