@@ -1,33 +1,36 @@
-import { readdir, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 const OUT_DIR = "out";
-const keep = new Set([
-  path.join(OUT_DIR, "index.html"),
-]);
+const ARTIFACT_DIR = "frontend-artifact";
 
-async function pruneHtml(dir) {
+async function copyArtifact(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   await Promise.all(
     entries.map(async (entry) => {
       const fullPath = path.join(dir, entry.name);
+      const relativePath = path.relative(OUT_DIR, fullPath);
+      const artifactPath = path.join(ARTIFACT_DIR, relativePath);
+
       if (entry.isDirectory()) {
-        await pruneHtml(fullPath);
-        const remaining = await readdir(fullPath);
-        if (remaining.length === 0) {
-          await rm(fullPath, { recursive: true, force: true });
-        }
+        await mkdir(artifactPath, { recursive: true });
+        await copyArtifact(fullPath);
         return;
       }
-      if (!entry.isFile() || !fullPath.endsWith(".html") || keep.has(fullPath)) {
+      if (!entry.isFile()) {
         return;
       }
-      await rm(fullPath, { force: true });
+      if (fullPath.endsWith(".html") && fullPath !== path.join(OUT_DIR, "index.html")) {
+        return;
+      }
+      await cp(fullPath, artifactPath);
     }),
   );
 }
 
 const outStats = await stat(OUT_DIR).catch(() => null);
 if (outStats?.isDirectory()) {
-  await pruneHtml(OUT_DIR);
+  await rm(ARTIFACT_DIR, { recursive: true, force: true });
+  await mkdir(ARTIFACT_DIR, { recursive: true });
+  await copyArtifact(OUT_DIR);
 }
