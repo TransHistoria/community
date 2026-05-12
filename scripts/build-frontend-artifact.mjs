@@ -21,6 +21,8 @@ async function copyArtifact(dir) {
       if (!entry.isFile()) {
         return;
       }
+      // Keep only the SPA entry HTML; all route HTML files are intentionally
+      // excluded so deployment ships a single index.html with client routing.
       if (entry.name.endsWith(".html") && normalizedRelativePath !== "index.html") {
         return;
       }

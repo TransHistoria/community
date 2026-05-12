@@ -49,7 +49,7 @@ export default function RootLayout({
         if (!raw || raw === "?") return;
 
         var pathCandidate = "";
-        var safeDecode = function (value) {
+        var safeDecodeURIComponent = function (value) {
           try {
             return decodeURIComponent(value);
           } catch (e) {
@@ -57,7 +57,7 @@ export default function RootLayout({
           }
         };
 
-        pathCandidate = safeDecode(raw.slice(1));
+        pathCandidate = safeDecodeURIComponent(raw.slice(1));
         if (!pathCandidate.startsWith("/")) pathCandidate = "/" + pathCandidate;
         if (!pathCandidate.startsWith("/") || pathCandidate.startsWith("//")) return;
 
