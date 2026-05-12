@@ -7,6 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Users, Lock, Sparkles, type LucideIcon } from "lucide-react";
 import { toQueryRoute } from "@/lib/query-routing";
+import EventsPage from "../(app)/events/page";
+import NewEventPage from "../(app)/events/new/page";
+import MeOverviewPage from "../(app)/me/page";
+import MeProfilePage from "../(app)/me/profile/page";
+import MeSettingsPage from "../(app)/me/settings/page";
+import MeContactsPage from "../(app)/me/contacts/page";
+import MeContactRequestsPage from "../(app)/me/contact-requests/page";
+import MeRegistrationsPage from "../(app)/me/registrations/page";
+import MeInvitesPage from "../(app)/me/invites/page";
+import MeBlocksPage from "../(app)/me/blocks/page";
+import NotificationsPage from "../(app)/notifications/page";
 import EventDetailPageClient from "../(app)/events/[slug]/EventDetailPageClient";
 import ManageEventPageClient from "../(app)/events/[slug]/manage/ManageEventPageClient";
 import EditEventPageClient from "../(app)/events/[slug]/edit/EditEventPageClient";
@@ -31,11 +42,39 @@ function HomePageInner() {
     return "";
   }, [searchParams]);
 
-  if (/^\/events\/[^/]+\/manage$/.test(queryRoutePath)) return <ManageEventPageClient />;
-  if (/^\/events\/[^/]+\/edit$/.test(queryRoutePath)) return <EditEventPageClient />;
-  if (/^\/events\/[^/]+\/register$/.test(queryRoutePath)) return <RegisterPageClient />;
-  if (/^\/events\/[^/]+$/.test(queryRoutePath)) return <EventDetailPageClient />;
-  if (/^\/u\/[^/]+$/.test(queryRoutePath)) return <UserProfilePageClient />;
+  const isEventManage = /^\/events\/[^/]+\/manage$/.test(queryRoutePath);
+  const isEventEdit = /^\/events\/[^/]+\/edit$/.test(queryRoutePath);
+  const isEventRegister = /^\/events\/[^/]+\/register$/.test(queryRoutePath);
+  const isEventDetail = /^\/events\/[^/]+$/.test(queryRoutePath);
+  const isUserDetail = /^\/u\/[^/]+$/.test(queryRoutePath);
+  const isEventsIndex = queryRoutePath === "/events";
+  const isEventsNew = queryRoutePath === "/events/new";
+  const isMeIndex = queryRoutePath === "/me";
+  const isMeProfile = queryRoutePath === "/me/profile";
+  const isMeSettings = queryRoutePath === "/me/settings";
+  const isMeContacts = queryRoutePath === "/me/contacts";
+  const isMeContactRequests = queryRoutePath === "/me/contact-requests";
+  const isMeRegistrations = queryRoutePath === "/me/registrations";
+  const isMeInvites = queryRoutePath === "/me/invites";
+  const isMeBlocks = queryRoutePath === "/me/blocks";
+  const isNotifications = queryRoutePath === "/notifications";
+
+  if (isEventsIndex) return <EventsPage />;
+  if (isEventsNew) return <NewEventPage />;
+  if (isEventManage) return <ManageEventPageClient />;
+  if (isEventEdit) return <EditEventPageClient />;
+  if (isEventRegister) return <RegisterPageClient />;
+  if (isEventDetail) return <EventDetailPageClient />;
+  if (isMeIndex) return <MeOverviewPage />;
+  if (isMeProfile) return <MeProfilePage />;
+  if (isMeSettings) return <MeSettingsPage />;
+  if (isMeContacts) return <MeContactsPage />;
+  if (isMeContactRequests) return <MeContactRequestsPage />;
+  if (isMeRegistrations) return <MeRegistrationsPage />;
+  if (isMeInvites) return <MeInvitesPage />;
+  if (isMeBlocks) return <MeBlocksPage />;
+  if (isNotifications) return <NotificationsPage />;
+  if (isUserDetail) return <UserProfilePageClient />;
 
   return (
     <div className="space-y-24 py-6 md:py-12">

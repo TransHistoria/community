@@ -66,17 +66,8 @@ export default function RootLayout({
           pathCandidate = bp + pathCandidate;
         }
 
-        var localPathCandidate = bp && pathCandidate.startsWith(bp + "/")
-          ? pathCandidate.slice(bp.length)
-          : pathCandidate;
-        if (/^\/events\/[^/]+(?:\/(?:manage|edit|register))?$/.test(localPathCandidate) || /^\/u\/[^/]+$/.test(localPathCandidate)) {
-          return;
-        }
-
-        var targetUrl = new URL(pathCandidate, location.origin);
-        if (targetUrl.origin !== location.origin) return;
-
-        history.replaceState(null, "", targetUrl.pathname + targetUrl.search + targetUrl.hash);
+        // Keep literal /?... URL; route resolution happens client-side.
+        return;
       } catch (e) {}
     })();
   `;
