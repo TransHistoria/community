@@ -5,6 +5,7 @@ import { ShieldOff } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/toast-context";
 import { useRouter } from "next/navigation";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export function BlockButton({ targetHandle }: { targetHandle: string }) {
   const [pending, setPending] = React.useState(false);
@@ -18,7 +19,7 @@ export function BlockButton({ targetHandle }: { targetHandle: string }) {
     setPending(false);
     if (res.ok) {
       toast({ title: "已拉黑", variant: "success" });
-      router.push("/me");
+      router.push(toQueryRoute("/me"));
     } else {
       toast({ title: "操作失败", variant: "danger" });
     }

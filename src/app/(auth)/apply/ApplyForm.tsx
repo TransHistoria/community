@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export function ApplyForm() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export function ApplyForm() {
     setPending(true);
     try {
       await api.applications.submit(email, { identity, motivation, vouch });
-      router.push("/apply/pending");
+      router.push(toQueryRoute("/apply/pending"));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "提交失败，请稍后重试";
       setError(msg);
@@ -91,7 +92,7 @@ export function ApplyForm() {
           aria-label="我已阅读社区守则"
         />
         <span className="text-ink-muted leading-relaxed">
-          我已阅读并同意<a href="/about#community-guidelines" target="_blank" className="text-trans-blue-deep hover:underline">社区守则</a>。
+          我已阅读并同意<a href={toQueryRoute("/about#community-guidelines")} target="_blank" className="text-trans-blue-deep hover:underline">社区守则</a>。
         </span>
       </label>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

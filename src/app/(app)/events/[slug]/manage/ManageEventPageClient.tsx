@@ -120,7 +120,7 @@ export default function ManageEventPageClient() {
                   <Card key={r.id}>
                     <CardContent className="py-4 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <Link href={`/u/${r.user_handle}`} className="flex items-center gap-3 group">
+                        <Link href={toQueryRoute(`/u/${r.user_handle}`)} className="flex items-center gap-3 group">
                           <Avatar>
                             {r.user_avatar ? <AvatarImage src={r.user_avatar} alt="" /> : null}
                             <AvatarFallback>{r.user_name?.charAt(0) ?? "?"}</AvatarFallback>

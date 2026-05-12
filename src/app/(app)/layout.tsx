@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
+import { toQueryRoute } from "@/lib/query-routing";
 
 const GUEST_ACCESSIBLE_EVENT_DETAIL_PATTERN = /^\/events\/[^/]+$/;
 const GUEST_ACCESSIBLE_USER_PROFILE_PATTERN = /^\/u\/[^/]+$/;
@@ -23,7 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user && !isGuestAccessiblePage) {
-      router.replace("/sign-in");
+      router.replace(toQueryRoute("/sign-in"));
     }
   }, [user, loading, router, isGuestAccessiblePage]);
 

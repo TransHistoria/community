@@ -11,9 +11,9 @@ export function MobileNav({ signedIn }: { signedIn: boolean }) {
 
   const items = [
     { href: toQueryRoute("/events"), label: "活动", icon: Calendar, match: /^\/events/ },
-    { href: "/me", label: "我", icon: Home, match: /^\/me$/ },
-    { href: "/notifications", label: "通知", icon: Bell, match: /^\/notifications/ },
-    { href: "/me/profile", label: "主页", icon: User, match: /^\/me\/profile/ },
+    { href: toQueryRoute("/me"), label: "我", icon: Home, match: /^\/me$/ },
+    { href: toQueryRoute("/notifications"), label: "通知", icon: Bell, match: /^\/notifications/ },
+    { href: toQueryRoute("/me/profile"), label: "主页", icon: User, match: /^\/me\/profile/ },
   ];
 
   return (

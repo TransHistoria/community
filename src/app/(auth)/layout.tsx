@@ -1,5 +1,6 @@
 import { Logo } from "@/components/layout/Logo";
 import Link from "next/link";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export default function AuthLayout({
   children,
@@ -11,7 +12,7 @@ export default function AuthLayout({
       <header className="container flex h-16 items-center justify-between">
         <Logo />
         <Link
-          href="/about"
+          href={toQueryRoute("/about")}
           className="text-sm text-ink-muted hover:text-ink"
         >
           关于平台

@@ -23,14 +23,14 @@ export function TopBar() {
               活动
             </Link>
             <Link
-              href="/about"
+              href={toQueryRoute("/about")}
               className="text-ink-muted hover:text-ink transition-colors"
             >
               关于
             </Link>
             {user ? (
               <Link
-                href="/notifications"
+                href={toQueryRoute("/notifications")}
                 className="text-ink-muted hover:text-ink transition-colors"
               >
                 通知
@@ -44,10 +44,10 @@ export function TopBar() {
           ) : (
             <>
               <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                <Link href="/sign-in">登录</Link>
+                <Link href={toQueryRoute("/sign-in")}>登录</Link>
               </Button>
               <Button asChild>
-                <Link href="/sign-up">加入</Link>
+                <Link href={toQueryRoute("/sign-up")}>加入</Link>
               </Button>
             </>
           )}

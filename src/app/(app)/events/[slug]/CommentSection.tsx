@@ -11,6 +11,7 @@ import { ReportButton } from "@/components/moderation/ReportButton";
 import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
 import { relativeTime } from "@/lib/utils";
 import Link from "next/link";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type ApiComment = {
   id: string;
@@ -44,7 +45,7 @@ function CommentBody({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <Link href={`/u/${comment.author_handle}`} className="flex items-center gap-2 group">
+        <Link href={toQueryRoute(`/u/${comment.author_handle}`)} className="flex items-center gap-2 group">
           <Avatar className="h-8 w-8">
             {comment.author_avatar ? <AvatarImage src={comment.author_avatar} alt="" /> : null}
             <AvatarFallback className="text-xs">{comment.author_name.charAt(0)}</AvatarFallback>

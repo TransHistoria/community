@@ -11,6 +11,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { toQueryRoute } from "@/lib/query-routing";
 
 const TIER_LABEL: Record<string, string> = {
   GUEST: "游客",
@@ -57,34 +58,34 @@ export function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/me">我的概览</Link>
+          <Link href={toQueryRoute("/me")}>我的概览</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href={`/u/${user.handle}`}>查看我的主页</Link>
+          <Link href={toQueryRoute(`/u/${user.handle}`)}>查看我的主页</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/me/profile">编辑主页</Link>
+          <Link href={toQueryRoute("/me/profile")}>编辑主页</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/me/contacts">联系方式</Link>
+          <Link href={toQueryRoute("/me/contacts")}>联系方式</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/me/contact-requests">联系请求</Link>
+          <Link href={toQueryRoute("/me/contact-requests")}>联系请求</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/me/registrations">我的报名</Link>
+          <Link href={toQueryRoute("/me/registrations")}>我的报名</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/me/invites">我的邀请码</Link>
+          <Link href={toQueryRoute("/me/invites")}>我的邀请码</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/me/settings">设置</Link>
+          <Link href={toQueryRoute("/me/settings")}>设置</Link>
         </DropdownMenuItem>
         {user.tier === "ADMIN" ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/admin/applications">管理后台</Link>
+              <Link href={toQueryRoute("/admin/applications")}>管理后台</Link>
             </DropdownMenuItem>
           </>
         ) : null}

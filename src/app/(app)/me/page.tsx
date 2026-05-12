@@ -71,26 +71,26 @@ export default function MeOverviewPage() {
           label="我的身份"
           value={<TierBadge tier={user.tier} />}
           hint={`@${user.handle}`}
-          href={`/u/${user.handle}`}
+          href={toQueryRoute(`/u/${user.handle}`)}
         />
         <StatCard
           label="待处理联系请求"
           value={pendingReqs}
           hint="来自其他成员对你联系方式的查看申请"
-          href="/me/contact-requests"
+          href={toQueryRoute("/me/contact-requests")}
         />
         <StatCard
           label="未读通知"
           value={unreadNotif}
           hint="活动状态、请求回复等"
-          href="/notifications"
+          href={toQueryRoute("/notifications")}
         />
       </div>
 
       <section className="space-y-3">
         <div className="flex items-end justify-between">
           <h2 className="font-serif text-h2 tracking-tight">即将到来的活动</h2>
-          <Link href="/me/registrations" className="text-sm text-trans-blue-deep hover:underline">
+          <Link href={toQueryRoute("/me/registrations")} className="text-sm text-trans-blue-deep hover:underline">
             查看全部
           </Link>
         </div>

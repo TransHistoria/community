@@ -1,5 +1,6 @@
 import { Text, Button } from "@react-email/components";
 import { EmailLayout, styles } from "./_layout";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export default function ApplicationApprovedEmail({ appName }: { appName: string }) {
   return (
@@ -12,7 +13,7 @@ export default function ApplicationApprovedEmail({ appName }: { appName: string 
         进入前，建议先完善你的主页（昵称、代词、自我介绍），以及调整联系方式的可见范围——
         这些设置都可以随时修改。
       </Text>
-      <Button href="/me/profile" style={styles.button}>
+      <Button href={toQueryRoute("/me/profile")} style={styles.button}>
         完善主页
       </Button>
       <Text style={{ ...styles.p, color: "#6B655E", fontSize: 13, marginTop: 16 }}>

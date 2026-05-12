@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export function VerifyMagicLinkClient() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export function VerifyMagicLinkClient() {
       .then((res) => {
         if (cancelled) return;
         login(res.token, res.user);
-        router.replace("/me");
+        router.replace(toQueryRoute("/me"));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -54,7 +55,7 @@ export function VerifyMagicLinkClient() {
         <p className="text-sm text-ink-muted">{message}</p>
         {status === "error" ? (
           <Button asChild>
-            <Link href="/sign-in">返回登录页</Link>
+            <Link href={toQueryRoute("/sign-in")}>返回登录页</Link>
           </Button>
         ) : null}
       </CardContent>

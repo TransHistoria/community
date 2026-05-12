@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { TierBadge } from "@/components/user/TierBadge";
 import { UserActions } from "./UserActions";
 import { formatDate } from "@/lib/utils";
+import { toQueryRoute } from "@/lib/query-routing";
 
 type AdminUser = { id: string; handle: string; displayName: string; email: string; tier: string; status: string; created_at: string };
 
@@ -37,7 +38,7 @@ function AdminUsersInner() {
             <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Link href={`/u/${u.handle}`} className="font-medium hover:text-trans-blue-deep">{u.displayName}</Link>
+                  <Link href={toQueryRoute(`/u/${u.handle}`)} className="font-medium hover:text-trans-blue-deep">{u.displayName}</Link>
                   <span className="text-xs text-ink-subtle">@{u.handle}</span>
                   <TierBadge tier={u.tier} />
                   {u.status !== "ACTIVE" ? (

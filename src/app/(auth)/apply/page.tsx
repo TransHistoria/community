@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApplyForm } from "./ApplyForm";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export const metadata = { title: "入站申请" };
 
@@ -18,7 +19,7 @@ export default function ApplyPage() {
         <div className="text-center text-sm text-ink-muted pt-6 mt-6 border-t border-border">
           有邀请码？
           <Link
-            href="/sign-up"
+            href={toQueryRoute("/sign-up")}
             className="ml-1 text-trans-blue-deep hover:underline"
           >
             走邀请码通道

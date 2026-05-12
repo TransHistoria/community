@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { InviteSignUpForm } from "./InviteSignUpForm";
 import { Button } from "@/components/ui/button";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export const metadata = { title: "加入社群" };
 
@@ -38,14 +39,14 @@ export default function SignUpPage() {
               通过后我们会发一封邮件通知你。
             </p>
             <Button asChild className="w-full" size="lg">
-              <Link href="/apply">开始填写申请</Link>
+              <Link href={toQueryRoute("/apply")}>开始填写申请</Link>
             </Button>
           </TabsContent>
         </Tabs>
         <div className="text-center text-sm text-ink-muted pt-6 mt-6 border-t border-border">
           已有账号？
           <Link
-            href="/sign-in"
+            href={toQueryRoute("/sign-in")}
             className="ml-1 text-trans-blue-deep hover:underline"
           >
             登录

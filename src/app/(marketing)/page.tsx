@@ -38,10 +38,10 @@ export default function HomePage() {
             ) : (
               <>
                 <Button size="lg" asChild>
-                  <Link href="/sign-up">加入社群</Link>
+                  <Link href={toQueryRoute("/sign-up")}>加入社群</Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link href="/sign-in">已有账号</Link>
+                  <Link href={toQueryRoute("/sign-in")}>已有账号</Link>
                 </Button>
               </>
             )}
@@ -147,10 +147,10 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <Button size="lg" asChild>
-              <Link href="/sign-up">开始加入</Link>
+              <Link href={toQueryRoute("/sign-up")}>开始加入</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/about">先了解一下</Link>
+              <Link href={toQueryRoute("/about")}>先了解一下</Link>
             </Button>
           </div>
         </section>

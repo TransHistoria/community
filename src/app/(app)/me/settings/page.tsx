@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ExportButton } from "./ExportButton";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 import { ChangeEmailForm } from "./ChangeEmailForm";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export default function MeSettingsPage() {
   return (
@@ -39,7 +40,7 @@ export default function MeSettingsPage() {
           <CardDescription>管理你已经拉黑的成员。</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/me/blocks" className="text-sm text-trans-blue-deep hover:underline">
+          <Link href={toQueryRoute("/me/blocks")} className="text-sm text-trans-blue-deep hover:underline">
             前往拉黑列表 →
           </Link>
         </CardContent>

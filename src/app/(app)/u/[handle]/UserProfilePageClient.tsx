@@ -17,6 +17,7 @@ import { ContactRequestButton } from "./ContactRequestButton";
 import { BlockButton } from "./BlockButton";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { ProfileMarkdown } from "@/components/user/ProfileMarkdown";
+import { toQueryRoute } from "@/lib/query-routing";
 
 export default function UserProfilePageClient() {
   const { handle } = useParams<{ handle: string }>();
@@ -67,7 +68,7 @@ export default function UserProfilePageClient() {
           ) : null}
           {isSelf ? (
             <Button asChild size="sm" variant="outline">
-              <Link href="/me/profile">编辑主页</Link>
+              <Link href={toQueryRoute("/me/profile")}>编辑主页</Link>
             </Button>
           ) : null}
         </div>
