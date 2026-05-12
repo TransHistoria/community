@@ -15,6 +15,7 @@ export interface Env {
   APP_LOCALE: string;
   EMAIL_FROM: string;
   FRONTEND_URL: string;
+  TURNSTILE_SECRET_KEY?: string;
   /** Comma-separated admin email addresses */
   ADMIN_EMAILS: string;
   /** Optional bootstrap secret for creating the first admin */

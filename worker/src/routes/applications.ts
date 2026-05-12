@@ -11,6 +11,7 @@ import {
   sendTotpSetupEmail,
   sendApplicationRejectedEmail,
 } from "@/email/sender";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const applications = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -26,12 +27,20 @@ applications.post("/", async (c) => {
   const body = await c.req.json<{
     email?: string;
     answers?: Record<string, unknown>;
+    turnstileToken?: string;
   }>();
 
   const email = (body.email ?? "").trim().toLowerCase();
   if (!email || !email.includes("@")) {
     return c.json({ error: "请提供有效的邮箱地址" }, 400);
   }
+
+  const turnstile = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (!turnstile.ok) return c.json({ error: turnstile.error }, 400);
 
   // Check for existing pending/approved application
   const existing = await c.env.DB.prepare(

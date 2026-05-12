@@ -5,10 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { signUpInviteSchema } from "@/lib/validators/auth";
+import { TurnstileWidget } from "@/components/security/TurnstileWidget";
 
 export function InviteSignUpForm() {
+  const turnstileEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const [email, setEmail] = React.useState("");
   const [code, setCode] = React.useState("");
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = React.useState(0);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
@@ -21,14 +25,19 @@ export function InviteSignUpForm() {
       setError(parsed.error.issues[0]?.message ?? "校验失败");
       return;
     }
+    if (turnstileEnabled && !turnstileToken) {
+      setError("请完成人机验证");
+      return;
+    }
     setPending(true);
     try {
-      await api.auth.verifyInvite(parsed.data.email, parsed.data.code);
+      await api.auth.verifyInvite(parsed.data.email, parsed.data.code, turnstileToken ?? undefined);
       await api.auth.registerTotp(parsed.data.email);
       setSent(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "校验失败，请检查邀请码";
       setError(msg);
+      setTurnstileResetSignal((v) => v + 1);
     } finally {
       setPending(false);
     }
@@ -71,8 +80,17 @@ export function InviteSignUpForm() {
           className="font-mono tracking-widest"
         />
       </div>
+      <TurnstileWidget
+        onTokenChange={setTurnstileToken}
+        resetSignal={turnstileResetSignal}
+      />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button type="submit" className="w-full" size="lg" disabled={pending}>
+      <Button
+        type="submit"
+        className="w-full"
+        size="lg"
+        disabled={pending || (turnstileEnabled && !turnstileToken)}
+      >
         {pending ? "处理中..." : "校验并发送 TOTP 初始化邮件"}
       </Button>
     </form>

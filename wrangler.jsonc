@@ -41,6 +41,7 @@
     //   wrangler secret put APP_NAME
     //   wrangler secret put ADMIN_EMAILS
     //   wrangler secret put FRONTEND_URL
+    //   wrangler secret put TURNSTILE_SECRET_KEY
     "APP_NAME": "跨性别社群",
     "APP_LOCALE": "zh-CN",
     "EMAIL_FROM": "Trans Community <noreply@transhistoria.org>",

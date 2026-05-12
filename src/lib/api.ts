@@ -294,8 +294,8 @@ export const api = {
         { token },
       ),
 
-    verifyInvite: (email: string, code: string) =>
-      post<{ ok: boolean }>("/api/auth/verify-invite", { email, code }),
+    verifyInvite: (email: string, code: string, turnstileToken?: string) =>
+      post<{ ok: boolean }>("/api/auth/verify-invite", { email, code, turnstileToken }),
 
     me: () => get<SessionUser>("/api/auth/me"),
 
@@ -423,8 +423,8 @@ export const api = {
 
   // Applications
   applications: {
-    submit: (email: string, answers?: Record<string, unknown>) =>
-      post<{ ok: boolean }>("/api/applications", { email, answers }),
+    submit: (email: string, answers?: Record<string, unknown>, turnstileToken?: string) =>
+      post<{ ok: boolean }>("/api/applications", { email, answers, turnstileToken }),
 
     checkStatus: (email: string) =>
       get<{ application: { id: string; status: string; created_at: string } | null }>(

@@ -8,12 +8,16 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toQueryRoute } from "@/lib/query-routing";
+import { TurnstileWidget } from "@/components/security/TurnstileWidget";
 
 export function ApplyForm() {
+  const turnstileEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [agree, setAgree] = React.useState(false);
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = React.useState(0);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,13 +31,18 @@ export function ApplyForm() {
       setError("请检查表单");
       return;
     }
+    if (turnstileEnabled && !turnstileToken) {
+      setError("请完成人机验证");
+      return;
+    }
     setPending(true);
     try {
-      await api.applications.submit(email, { identity, motivation, vouch });
+      await api.applications.submit(email, { identity, motivation, vouch }, turnstileToken ?? undefined);
       router.push(toQueryRoute("/apply/pending"));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "提交失败，请稍后重试";
       setError(msg);
+      setTurnstileResetSignal((v) => v + 1);
     } finally {
       setPending(false);
     }
@@ -95,8 +104,17 @@ export function ApplyForm() {
           我已阅读并同意<a href={toQueryRoute("/about#community-guidelines")} target="_blank" className="text-trans-blue-deep hover:underline">社区守则</a>。
         </span>
       </label>
+      <TurnstileWidget
+        onTokenChange={setTurnstileToken}
+        resetSignal={turnstileResetSignal}
+      />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button type="submit" className="w-full" size="lg" disabled={pending || !agree}>
+      <Button
+        type="submit"
+        className="w-full"
+        size="lg"
+        disabled={pending || !agree || (turnstileEnabled && !turnstileToken)}
+      >
         {pending ? "正在提交..." : "提交申请"}
       </Button>
     </form>

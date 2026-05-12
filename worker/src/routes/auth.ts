@@ -8,6 +8,7 @@ import { buildOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "@/auth/totp
 import { signJwt } from "@/auth/jwt";
 import { sendTotpSetupEmail, sendVerificationEmail } from "@/email/sender";
 import { newId } from "@/lib/utils";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 import { requireAuth } from "@/middleware/auth";
 import type { UserRow } from "@/types";
 
@@ -319,10 +320,17 @@ auth.post("/verify", async (c) => {
 
 // POST /api/auth/verify-invite — verify invite code before requesting magic link
 auth.post("/verify-invite", async (c) => {
-  const body = await c.req.json<{ email?: string; code?: string }>();
+  const body = await c.req.json<{ email?: string; code?: string; turnstileToken?: string }>();
   const email = (body.email ?? "").trim().toLowerCase();
   const rawCode = (body.code ?? "").trim();
   if (!email || !rawCode) return c.json({ error: "参数缺失" }, 400);
+
+  const turnstile = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (!turnstile.ok) return c.json({ error: turnstile.error }, 400);
 
   const createAdminSecret = (c.env.CREATE_ADMIN ?? "").trim();
   if (createAdminSecret && rawCode === createAdminSecret) {
