@@ -10,7 +10,7 @@ function normalizeUrl(url?: string): string {
 
 const CONFIGURED_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_URL);
 const CONFIGURED_FALLBACK_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
-const FRONTEND_DEBUG = Boolean((process.env.NEXT_PUBLIC_DEBUG ?? "").trim());
+const FRONTEND_DEBUG = process.env.NEXT_PUBLIC_DEBUG === "1";
 
 function resolveBaseUrls(): string[] {
   const candidates: string[] = [CONFIGURED_BASE_URL, CONFIGURED_FALLBACK_BASE_URL, LEGACY_WORKER_URL];

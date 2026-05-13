@@ -52,8 +52,8 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_API_FALLBACK_URL: ${{ vars.NEXT_PUBLIC_API_FALLBACK_URL }}
           NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH }}
+          NEXT_PUBLIC_DEBUG: ${{ secrets.DEBUG != '' && '1' || '' }}
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
-          DEBUG: ${{ secrets.DEBUG }}
           # Needed by Next.js static export
           NEXT_TELEMETRY_DISABLED: 1
 
