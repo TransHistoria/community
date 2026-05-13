@@ -14,6 +14,8 @@ import {
   registrationStatusEmailHtml,
   eventReminderEmailHtml,
   contactRequestEmailHtml,
+  welcomeEmailHtml,
+  passwordResetEmailHtml,
 } from "@/email/templates";
 
 type RegStatus = "CONFIRMED" | "WAITLIST" | "DECLINED" | "PENDING";
@@ -215,4 +217,40 @@ export async function sendContactRequestEmail(
     html,
     text,
   );
+}
+
+export async function sendWelcomeEmail(
+  p: SendParams,
+  args: {
+    to: string;
+    signInUrl: string;
+    secret: string;
+    otpauthUrl: string;
+    initialPassword: string;
+    userTier?: string;
+  },
+): Promise<void> {
+  const qrSvg = await generateQrSvg(args.otpauthUrl);
+  const { html, text } = welcomeEmailHtml({
+    appName: p.appName,
+    signInUrl: args.signInUrl,
+    secret: args.secret,
+    otpauthUrl: args.otpauthUrl,
+    initialPassword: args.initialPassword,
+    qrSvg,
+    userTier: args.userTier,
+  });
+  await send(p.sendEmail, p.from, args.to, `欢迎加入 ${p.appName}`, html, text);
+}
+
+export async function sendPasswordResetEmail(
+  p: SendParams,
+  args: { to: string; signInUrl: string; newPassword: string },
+): Promise<void> {
+  const { html, text } = passwordResetEmailHtml({
+    appName: p.appName,
+    signInUrl: args.signInUrl,
+    newPassword: args.newPassword,
+  });
+  await send(p.sendEmail, p.from, args.to, `${p.appName} 密码已重置`, html, text);
 }

@@ -31,6 +31,10 @@ export interface UserRow {
   totp_secret: string | null;
   totp_pending_secret: string | null;
   totp_enabled: number;
+  password_hash: string | null;
+  password_pending_hash: string | null;
+  /** EITHER | PASSWORD_ONLY | TOTP_ONLY | BOTH_REQUIRED */
+  auth_mode: string;
   handle: string;
   display_name: string;
   pronouns: string | null;

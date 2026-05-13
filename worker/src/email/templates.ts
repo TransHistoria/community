@@ -217,3 +217,71 @@ export function contactRequestEmailHtml(params: {
   const text = `${params.requesterName} 申请查看你的联系方式。\n理由：${params.reason}\n处理：${params.url}`;
   return { html, text };
 }
+
+export function welcomeEmailHtml(params: {
+  appName: string;
+  signInUrl: string;
+  secret: string;
+  otpauthUrl: string;
+  initialPassword: string;
+  qrSvg?: string;
+  userTier?: string;
+}): { html: string; text: string } {
+  const prettySecret = params.secret.replace(/(.{4})/g, "$1 ").trim();
+  const qrSection = params.qrSvg
+    ? `<div style="display:flex;justify-content:center;margin:8px 0 16px;padding:12px;background:#fff;border:1px solid #eee;border-radius:8px;">${params.qrSvg}</div>`
+    : "";
+  const html = baseLayout(
+    params.appName,
+    `<p>你好，欢迎加入 <strong>${params.appName}</strong>！</p>
+${tierHtml(params.userTier)}
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;"/>
+
+<h3 style="margin:0 0 12px;font-size:16px;">🔑 初始密码</h3>
+<p>你的初始登录密码如下，请登录后立即前往「账号设置 → 安全偏好」修改：</p>
+<p style="font-size:18px;letter-spacing:0.1em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f6f6f6;padding:12px 14px;border-radius:8px;user-select:all;">${params.initialPassword}</p>
+<p><a href="${params.signInUrl}" class="btn">前往登录</a></p>
+
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;"/>
+
+<h3 style="margin:0 0 12px;font-size:16px;">📱 TOTP 认证器（推荐设置）</h3>
+<p>你也可以使用认证器应用登录，或要求同时验证密码和 TOTP（更高安全性）。</p>
+<p><strong>第一步：安装认证器</strong></p>
+<p style="margin:0 0 8px;">推荐：Google Authenticator、Microsoft Authenticator、Aegis（Android 开源）</p>
+<p><strong>第二步：添加账号</strong></p>
+${qrSection}
+<p>在认证器中选择「添加账号 → 手动输入密钥」：</p>
+<p style="font-size:16px;letter-spacing:0.12em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f6f6f6;padding:12px 14px;border-radius:8px;">${prettySecret}</p>
+<p style="font-size:12px;color:#666;">或粘贴以下链接导入：<br/><code style="font-size:11px;word-break:break-all;">${params.otpauthUrl}</code></p>
+
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;"/>
+
+<h3 style="margin:0 0 12px;font-size:16px;">⚙️ 安全偏好设置</h3>
+<p>登录后进入「账号设置 → 安全偏好」，可以：</p>
+<ul style="margin:0 0 16px;padding-left:20px;line-height:1.9;font-size:15px;">
+  <li>修改密码</li>
+  <li>切换登录方式：仅密码 / 仅 TOTP / 密码或 TOTP（默认）/ 同时需要两者</li>
+</ul>
+<p style="color:#c0392b;font-size:13px;">⚠️ 请妥善保存 TOTP 密钥，手机丢失时需要它来恢复访问。密码和 TOTP 不可同时停用。</p>`,
+  );
+  const text = `欢迎加入 ${params.appName}！\n${tierText(params.userTier)}\n\n【初始密码】\n${params.initialPassword}\n请登录后立即修改密码。\n登录地址：${params.signInUrl}\n\n【TOTP 认证器设置（推荐）】\n在认证器中手动输入密钥：${prettySecret}\n导入链接：${params.otpauthUrl}\n\n【安全偏好】\n登录后进入「账号设置 → 安全偏好」可修改密码和切换登录方式（仅密码 / 仅 TOTP / 任一 / 两者同时）。\n\n⚠️ 请妥善保存 TOTP 密钥，丢失设备时需要它来恢复访问。`;
+  return { html, text };
+}
+
+export function passwordResetEmailHtml(params: {
+  appName: string;
+  signInUrl: string;
+  newPassword: string;
+}): { html: string; text: string } {
+  const html = baseLayout(
+    params.appName,
+    `<p>你好，</p>
+<p>你的 <strong>${params.appName}</strong> 账号密码已重置。新密码如下，请登录后立即修改：</p>
+<p style="font-size:18px;letter-spacing:0.1em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f6f6f6;padding:12px 14px;border-radius:8px;user-select:all;">${params.newPassword}</p>
+<p><a href="${params.signInUrl}" class="btn">前往登录</a></p>
+<p style="font-size:13px;color:#666;">如果你没有申请重置密码，请立即联系管理员。</p>`,
+  );
+  const text = `你的 ${params.appName} 账号密码已重置。新密码：${params.newPassword}\n登录后请立即修改。\n登录地址：${params.signInUrl}\n\n如未申请，请联系管理员。`;
+  return { html, text };
+}
+
