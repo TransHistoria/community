@@ -24,6 +24,10 @@ const nextConfig = {
       process.env.TURNSTILE_SITE_KEY ??
       process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ??
       "",
+    NEXT_PUBLIC_DEBUG:
+      process.env.DEBUG ??
+      process.env.NEXT_PUBLIC_DEBUG ??
+      "",
   },
 };
 

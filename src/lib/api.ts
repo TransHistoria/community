@@ -10,6 +10,7 @@ function normalizeUrl(url?: string): string {
 
 const CONFIGURED_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_URL);
 const CONFIGURED_FALLBACK_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
+const FRONTEND_DEBUG = Boolean((process.env.NEXT_PUBLIC_DEBUG ?? "").trim());
 
 function resolveBaseUrls(): string[] {
   const candidates: string[] = [CONFIGURED_BASE_URL, CONFIGURED_FALLBACK_BASE_URL, LEGACY_WORKER_URL];
@@ -26,6 +27,7 @@ class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public detail?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -58,11 +60,23 @@ async function request<T>(
 
       if (!res.ok) {
         let message = res.statusText;
+        let detail: unknown;
         try {
-          const body = (await res.json()) as { error?: string };
-          if (body.error) message = body.error;
+          const body = await res.json();
+          if (body && typeof body === "object") {
+            const shaped = body as { error?: string; reason?: string; detail?: unknown; debug?: unknown };
+            if (shaped.error) message = shaped.error;
+            detail = body;
+            if (FRONTEND_DEBUG) {
+              const reason = typeof shaped.reason === "string" ? shaped.reason : undefined;
+              const debugMessage = JSON.stringify(body, null, 2);
+              message = reason && reason !== message ? `${message}: ${reason}` : message;
+              message = `${message}\n${debugMessage}`;
+              console.error("API request rejected", { path, status: res.status, body });
+            }
+          }
         } catch {}
-        const apiError = new ApiError(res.status, message);
+        const apiError = new ApiError(res.status, message, detail);
         // Wrong-host fallbacks often return 404/405 for /api/*; keep trying.
         if (res.status === 404 || res.status === 405) {
           lastApiError = apiError;

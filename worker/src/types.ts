@@ -16,6 +16,7 @@ export interface Env {
   EMAIL_FROM: string;
   FRONTEND_URL: string;
   TURNSTILE_SECRET_KEY?: string;
+  DEBUG?: string;
   /** Comma-separated admin email addresses */
   ADMIN_EMAILS: string;
   /** Optional bootstrap secret for creating the first admin */
@@ -196,4 +197,6 @@ export type Variables = {
   userId: string;
   userTier: string;
   userHandle: string;
+  debugEnabled: boolean;
+  debugLogs: string[];
 };
