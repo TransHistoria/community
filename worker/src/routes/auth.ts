@@ -254,22 +254,24 @@ auth.post("/login-password", async (c) => {
     if (!totpOk && user.totp_pending_secret) {
       const pendingOk = await verifyTotpCode(user.totp_pending_secret, totpCode);
       if (pendingOk) {
+        const promotedSecret = user.totp_pending_secret;
         await c.env.DB.prepare(
           "UPDATE users SET totp_secret = ?, totp_pending_secret = NULL, updated_at = datetime('now') WHERE id = ?",
-        ).bind(user.totp_pending_secret, user.id).run();
-        user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first<UserRow>();
+        ).bind(promotedSecret, user.id).run();
+        user = { ...user, totp_secret: promotedSecret, totp_pending_secret: null };
         totpOk = true;
       }
     }
     if (!totpOk) return c.json({ error: "TOTP 验证码无效" }, 401);
   }
 
-  // Promote pending password to active
+  // Promote pending password to active (update local object, no extra DB read)
   if (promotePending && user) {
+    const promotedHash = user.password_pending_hash!;
     await c.env.DB.prepare(
-      "UPDATE users SET password_hash = password_pending_hash, password_pending_hash = NULL, updated_at = datetime('now') WHERE id = ?",
-    ).bind(user.id).run();
-    user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first<UserRow>();
+      "UPDATE users SET password_hash = ?, password_pending_hash = NULL, updated_at = datetime('now') WHERE id = ?",
+    ).bind(promotedHash, user.id).run();
+    user = { ...user, password_hash: promotedHash, password_pending_hash: null };
   }
 
   if (!user) return c.json({ error: "登录失败" }, 500);
@@ -352,7 +354,7 @@ auth.patch("/security", requireAuth, async (c) => {
   const params: unknown[] = [];
 
   // Validate auth_mode change won't disable both
-  if (body.authMode !== undefined) {
+  if (body.authMode !== undefined && body.authMode !== "") {
     if (!VALID_MODES.includes(body.authMode)) {
       return c.json({ error: "无效的登录方式" }, 400);
     }

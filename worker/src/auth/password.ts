@@ -38,10 +38,13 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(":");
   if (parts.length !== 4 || parts[0] !== "v1") return false;
-  const iterations = parseInt(parts[1]!, 10);
-  if (!iterations) return false;
-  const salt = b64urlDecode(parts[2]!);
-  const expected = b64urlDecode(parts[3]!);
+  const iterations = parseInt(parts[1] ?? "", 10);
+  if (!iterations || iterations <= 0) return false;
+  const saltStr = parts[2];
+  const hashStr = parts[3];
+  if (!saltStr || !hashStr) return false;
+  const salt = b64urlDecode(saltStr);
+  const expected = b64urlDecode(hashStr);
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -64,14 +67,21 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 const PASSWORD_CHARS = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CHARS_LEN = PASSWORD_CHARS.length; // 57
+
+// Rejection sampling: discard bytes that would produce modulo bias.
+// Largest multiple of CHARS_LEN that fits in a byte (0-255).
+const BYTE_CAP = Math.floor(256 / CHARS_LEN) * CHARS_LEN; // 228
 
 export function generateRandomPassword(length = 16): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
   let result = "";
-  for (const byte of bytes) {
-    if (result.length >= length) break;
-    const idx = byte % PASSWORD_CHARS.length;
-    result += PASSWORD_CHARS[idx];
+  while (result.length < length) {
+    const bytes = crypto.getRandomValues(new Uint8Array(length * 3));
+    for (const byte of bytes) {
+      if (result.length >= length) break;
+      if (byte >= BYTE_CAP) continue; // reject to eliminate bias
+      result += PASSWORD_CHARS[byte % CHARS_LEN];
+    }
   }
   return result;
 }

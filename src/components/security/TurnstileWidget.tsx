@@ -43,6 +43,7 @@ function ensureTurnstileScript(): Promise<void> {
       });
       window.setTimeout(() => {
         if (window.turnstile) resolve();
+        else reject(new Error("Turnstile script timed out"));
       }, 300);
       return;
     }
