@@ -183,6 +183,9 @@ auth.post("/login-totp", async (c) => {
   if (authMode === "PASSWORD_ONLY") {
     return c.json({ error: "该账号仅允许密码登录" }, 403);
   }
+  if (authMode === "BOTH_REQUIRED") {
+    return c.json({ error: "该账号要求同时提供密码和 TOTP 验证码，请使用密码登录入口" }, 403);
+  }
   if (!user.totp_enabled || !user.totp_secret) {
     return c.json({ error: "该邮箱尚未初始化 TOTP，请先完成注册" }, 400);
   }
