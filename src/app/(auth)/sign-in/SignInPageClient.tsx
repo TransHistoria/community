@@ -10,7 +10,7 @@ export default function SignInPageClient() {
     <Card>
       <CardHeader className="text-center">
         <CardTitle>登录</CardTitle>
-        <CardDescription>输入邮箱和认证器中的 6 位验证码登录。无需密码。</CardDescription>
+        <CardDescription>使用密码或认证器 TOTP 验证码登录。</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <SignInForm callbackUrl={toQueryRoute("/me")} />

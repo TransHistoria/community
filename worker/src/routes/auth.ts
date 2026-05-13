@@ -389,6 +389,7 @@ auth.patch("/security", requireAuth, async (c) => {
 
   return c.json({ ok: true });
 });
+// POST /api/auth/change-email — change own email after TOTP verification
 auth.post("/change-email", requireAuth, async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json<{ newEmail?: string; code?: string }>();
@@ -615,6 +616,9 @@ auth.get("/me", requireAuth, async (c) => {
     genderIdentity: user.gender_identity,
     bio: user.bio,
     createdAt: user.created_at,
+    authMode: user.auth_mode ?? "EITHER",
+    passwordSet: Boolean(user.password_hash),
+    totpEnabled: Boolean(user.totp_enabled),
   });
 });
 

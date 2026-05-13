@@ -46,8 +46,8 @@ export function InviteSignUpForm() {
   if (sent) {
     return (
       <div className="text-center space-y-2">
-        <p className="text-sm font-medium">TOTP 初始化信息已发送到你的邮箱</p>
-        <p className="text-xs text-ink-subtle">请在邮箱里扫码配置认证器后，前往登录页输入 6 位验证码。</p>
+        <p className="text-sm font-medium">初始化邮件已发送到你的邮箱</p>
+        <p className="text-xs text-ink-subtle">邮件中包含你的初始密码和 TOTP 密钥，请查收后按说明完成设置，然后前往登录页使用密码或 TOTP 验证码登录。</p>
       </div>
     );
   }

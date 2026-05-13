@@ -5,12 +5,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ExportButton } from "./ExportButton";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 import { ChangeEmailForm } from "./ChangeEmailForm";
+import { SecurityPreferencesForm } from "./SecurityPreferencesForm";
 import { toQueryRoute } from "@/lib/query-routing";
 
 export default function MeSettingsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader eyebrow="设置" title="账号与隐私" />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>安全偏好</CardTitle>
+          <CardDescription>
+            修改密码（新密码首次成功登录后生效）、切换登录方式（密码 / TOTP / 两者皆可 / 两者都要求）。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SecurityPreferencesForm />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

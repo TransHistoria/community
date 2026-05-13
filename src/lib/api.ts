@@ -106,6 +106,9 @@ export interface SessionUser {
   genderIdentity?: string | null;
   bio?: string | null;
   createdAt?: string;
+  authMode?: string;
+  passwordSet?: boolean;
+  totpEnabled?: boolean;
 }
 
 export interface Event {
@@ -284,6 +287,23 @@ export const api = {
         email,
         code,
       }),
+
+    loginPassword: (email: string, password: string, code?: string) =>
+      post<{ ok: boolean; token: string; user: SessionUser }>("/api/auth/login-password", {
+        email,
+        password,
+        ...(code ? { code } : {}),
+      }),
+
+    resetPassword: (email: string) =>
+      post<{ ok: boolean }>("/api/auth/reset-password", { email }),
+
+    updateSecurity: (opts: {
+      currentPassword?: string;
+      totpCode?: string;
+      newPassword?: string;
+      authMode?: string;
+    }) => patch<{ ok: boolean }>("/api/auth/security", opts),
 
     changeEmail: (newEmail: string, code: string) =>
       post<{ ok: boolean }>("/api/auth/change-email", { newEmail, code }),
@@ -499,6 +519,12 @@ export const api = {
         "/api/admin/test-turnstile",
         turnstileToken ? { turnstileToken } : {},
       ),
+
+    reinitializeUser: (userId: string) =>
+      post<{ ok: boolean }>(`/api/admin/users/${userId}/reinitialize`, {}),
+
+    setUserEmail: (userId: string, email: string) =>
+      patch<{ ok: boolean }>(`/api/admin/users/${userId}/email`, { email }),
   },
 
   // Files

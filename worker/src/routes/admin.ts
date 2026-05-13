@@ -5,7 +5,9 @@ import type { Env, Variables, UserRow, ReportRow, AuditLogRow } from "@/types";
 import { requireAuth, requireTier } from "@/middleware/auth";
 import { newId } from "@/lib/utils";
 import { verifyTurnstileToken } from "@/lib/turnstile";
-import { sendTestEmail } from "@/email/sender";
+import { buildOtpAuthUrl, generateTotpSecret } from "@/auth/totp";
+import { hashPassword, generateRandomPassword } from "@/auth/password";
+import { sendTestEmail, sendWelcomeEmail } from "@/email/sender";
 
 const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -85,6 +87,82 @@ admin.patch("/users/:id", async (c) => {
     );
   }
 
+  return c.json({ ok: true });
+});
+
+// POST /api/admin/users/:id/reinitialize — reset TOTP + password and send fresh welcome email
+admin.post("/users/:id/reinitialize", async (c) => {
+  const viewer = viewerFrom(c);
+  const { id } = c.req.param();
+
+  const user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+    .bind(id)
+    .first<UserRow>();
+  if (!user) return c.json({ error: "用户不存在" }, 404);
+
+  // Generate new TOTP pending secret
+  const secret = generateTotpSecret();
+  const otpauthUrl = buildOtpAuthUrl(c.env.APP_NAME, user.email, secret);
+
+  // Generate new initial password as pending
+  const initialPassword = generateRandomPassword();
+  const pendingHash = await hashPassword(initialPassword);
+
+  await c.env.DB.prepare(
+    `UPDATE users
+     SET totp_pending_secret = ?,
+         password_pending_hash = ?,
+         updated_at = datetime('now')
+     WHERE id = ?`,
+  ).bind(secret, pendingHash, id).run();
+
+  try {
+    await sendWelcomeEmail(
+      { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+      {
+        to: user.email,
+        signInUrl: `${c.env.FRONTEND_URL}/sign-in`,
+        secret,
+        otpauthUrl,
+        initialPassword,
+        userTier: user.tier,
+      },
+    );
+  } catch (err) {
+    console.error("Failed to send reinitialize welcome email:", err);
+    return c.json({ error: "邮件发送失败，请检查邮件服务配置" }, 502);
+  }
+
+  await auditLog(c.env.DB, viewer.id, "ADMIN_USER_REINITIALIZE", "User", id, {});
+  return c.json({ ok: true });
+});
+
+// PATCH /api/admin/users/:id/email — admin overrides a user's email address
+admin.patch("/users/:id/email", async (c) => {
+  const viewer = viewerFrom(c);
+  const { id } = c.req.param();
+
+  const body = await c.req.json<{ email?: string }>();
+  const newEmail = (body.email ?? "").trim().toLowerCase();
+  if (!newEmail || !newEmail.includes("@")) {
+    return c.json({ error: "请提供有效的邮箱地址" }, 400);
+  }
+
+  const user = await c.env.DB.prepare("SELECT id FROM users WHERE id = ?")
+    .bind(id)
+    .first<{ id: string }>();
+  if (!user) return c.json({ error: "用户不存在" }, 404);
+
+  const conflict = await c.env.DB.prepare(
+    "SELECT id FROM users WHERE email = ? AND id <> ?",
+  ).bind(newEmail, id).first<{ id: string }>();
+  if (conflict) return c.json({ error: "该邮箱已被其他用户使用" }, 409);
+
+  await c.env.DB.prepare(
+    "UPDATE users SET email = ?, updated_at = datetime('now') WHERE id = ?",
+  ).bind(newEmail, id).run();
+
+  await auditLog(c.env.DB, viewer.id, "ADMIN_USER_EMAIL_CHANGE", "User", id, { newEmail });
   return c.json({ ok: true });
 });
 
