@@ -10,6 +10,7 @@ function normalizeUrl(url?: string): string {
 
 const CONFIGURED_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_URL);
 const CONFIGURED_FALLBACK_BASE_URL = normalizeUrl(process.env.NEXT_PUBLIC_API_FALLBACK_URL);
+const FRONTEND_DEBUG = process.env.NEXT_PUBLIC_DEBUG === "1";
 
 function resolveBaseUrls(): string[] {
   const candidates: string[] = [CONFIGURED_BASE_URL, CONFIGURED_FALLBACK_BASE_URL, LEGACY_WORKER_URL];
@@ -26,6 +27,7 @@ class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public detail?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -58,11 +60,23 @@ async function request<T>(
 
       if (!res.ok) {
         let message = res.statusText;
+        let detail: unknown;
         try {
-          const body = (await res.json()) as { error?: string };
-          if (body.error) message = body.error;
+          const body = await res.json();
+          if (body && typeof body === "object") {
+            const shaped = body as { error?: string; reason?: string; detail?: unknown; debug?: unknown };
+            if (shaped.error) message = shaped.error;
+            detail = body;
+            if (FRONTEND_DEBUG) {
+              const reason = typeof shaped.reason === "string" ? shaped.reason : undefined;
+              const debugMessage = JSON.stringify(body, null, 2);
+              message = reason && reason !== message ? `${message}: ${reason}` : message;
+              message = `${message}\n${debugMessage}`;
+              console.error("API request rejected", { path, status: res.status, body });
+            }
+          }
         } catch {}
-        const apiError = new ApiError(res.status, message);
+        const apiError = new ApiError(res.status, message, detail);
         // Wrong-host fallbacks often return 404/405 for /api/*; keep trying.
         if (res.status === 404 || res.status === 405) {
           lastApiError = apiError;
@@ -106,6 +120,9 @@ export interface SessionUser {
   genderIdentity?: string | null;
   bio?: string | null;
   createdAt?: string;
+  authMode?: string;
+  passwordSet?: boolean;
+  totpEnabled?: boolean;
 }
 
 export interface Event {
@@ -285,6 +302,23 @@ export const api = {
         code,
       }),
 
+    loginPassword: (email: string, password: string, code?: string) =>
+      post<{ ok: boolean; token: string; user: SessionUser }>("/api/auth/login-password", {
+        email,
+        password,
+        ...(code ? { code } : {}),
+      }),
+
+    resetPassword: (email: string) =>
+      post<{ ok: boolean }>("/api/auth/reset-password", { email }),
+
+    updateSecurity: (opts: {
+      currentPassword?: string;
+      totpCode?: string;
+      newPassword?: string;
+      authMode?: string;
+    }) => patch<{ ok: boolean }>("/api/auth/security", opts),
+
     changeEmail: (newEmail: string, code: string) =>
       post<{ ok: boolean }>("/api/auth/change-email", { newEmail, code }),
 
@@ -294,8 +328,8 @@ export const api = {
         { token },
       ),
 
-    verifyInvite: (email: string, code: string) =>
-      post<{ ok: boolean }>("/api/auth/verify-invite", { email, code }),
+    verifyInvite: (email: string, code: string, turnstileToken?: string) =>
+      post<{ ok: boolean }>("/api/auth/verify-invite", { email, code, turnstileToken }),
 
     me: () => get<SessionUser>("/api/auth/me"),
 
@@ -367,6 +401,8 @@ export const api = {
     myRegistrations: () =>
       get<{ registrations: Registration[] }>("/api/users/me/registrations"),
 
+    exportMe: () => get<Record<string, unknown>>("/api/users/me/export"),
+
     // Contacts
     myContacts: () => get<{ contacts: ContactMethod[] }>("/api/users/me/contacts"),
 
@@ -421,8 +457,8 @@ export const api = {
 
   // Applications
   applications: {
-    submit: (email: string, answers?: Record<string, unknown>) =>
-      post<{ ok: boolean }>("/api/applications", { email, answers }),
+    submit: (email: string, answers?: Record<string, unknown>, turnstileToken?: string) =>
+      post<{ ok: boolean }>("/api/applications", { email, answers, turnstileToken }),
 
     checkStatus: (email: string) =>
       get<{ application: { id: string; status: string; created_at: string } | null }>(
@@ -491,6 +527,18 @@ export const api = {
 
     sendTestEmail: (to?: string) =>
       post<{ ok: boolean }>("/api/admin/test-email", to ? { to } : {}),
+
+    testTurnstile: (turnstileToken?: string) =>
+      post<{ ok: boolean; enforced?: boolean; message?: string }>(
+        "/api/admin/test-turnstile",
+        turnstileToken ? { turnstileToken } : {},
+      ),
+
+    reinitializeUser: (userId: string) =>
+      post<{ ok: boolean }>(`/api/admin/users/${userId}/reinitialize`, {}),
+
+    setUserEmail: (userId: string, email: string) =>
+      patch<{ ok: boolean }>(`/api/admin/users/${userId}/email`, { email }),
   },
 
   // Files

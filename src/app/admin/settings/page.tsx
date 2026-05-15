@@ -6,12 +6,18 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { TurnstileWidget } from "@/components/security/TurnstileWidget";
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
   const [to, setTo] = React.useState("");
   const [status, setStatus] = React.useState<"idle" | "sending" | "ok" | "error">("idle");
   const [errMsg, setErrMsg] = React.useState("");
+  const turnstileEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = React.useState(0);
+  const [turnstileStatus, setTurnstileStatus] = React.useState<"idle" | "testing" | "ok" | "error">("idle");
+  const [turnstileMsg, setTurnstileMsg] = React.useState("");
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -23,6 +29,25 @@ export default function AdminSettingsPage() {
     } catch (err) {
       setStatus("error");
       setErrMsg(err instanceof Error ? err.message : "发送失败");
+    }
+  }
+
+  async function handleTestTurnstile(e: React.FormEvent) {
+    e.preventDefault();
+    setTurnstileStatus("testing");
+    setTurnstileMsg("");
+    try {
+      const res = await api.admin.testTurnstile(turnstileToken ?? undefined);
+      setTurnstileStatus("ok");
+      setTurnstileMsg(
+        res.enforced === false
+          ? (res.message ?? "Turnstile 未启用（未配置 TURNSTILE_SECRET_KEY）")
+          : "Turnstile 校验成功",
+      );
+    } catch (err) {
+      setTurnstileStatus("error");
+      setTurnstileMsg(err instanceof Error ? err.message : "Turnstile 测试失败");
+      setTurnstileResetSignal((v) => v + 1);
     }
   }
 
@@ -58,6 +83,40 @@ export default function AdminSettingsPage() {
           )}
           {status === "error" && (
             <p className="text-sm text-red-500">✗ {errMsg}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <h3 className="font-semibold mb-1">测试 Turnstile</h3>
+            <p className="text-sm text-ink-muted mb-4">
+              验证前端 site key 与 Worker 端 TURNSTILE_SECRET_KEY 是否配置正确。
+            </p>
+          </div>
+
+          <form onSubmit={handleTestTurnstile} className="space-y-3">
+            {turnstileEnabled ? (
+              <TurnstileWidget onTokenChange={setTurnstileToken} resetSignal={turnstileResetSignal} />
+            ) : (
+              <p className="text-sm text-ink-muted">
+                未检测到 TURNSTILE_SITE_KEY（构建时注入），可直接测试 Worker 端配置状态。
+              </p>
+            )}
+            <Button
+              type="submit"
+              disabled={turnstileStatus === "testing" || (turnstileEnabled && !turnstileToken)}
+            >
+              {turnstileStatus === "testing" ? "测试中…" : "测试 Turnstile"}
+            </Button>
+          </form>
+
+          {turnstileStatus === "ok" && (
+            <p className="text-sm text-green-600">✓ {turnstileMsg}</p>
+          )}
+          {turnstileStatus === "error" && (
+            <p className="text-sm text-red-500">✗ {turnstileMsg}</p>
           )}
         </CardContent>
       </Card>

@@ -5,12 +5,13 @@ import type { D1Database } from "@cloudflare/workers-types";
 import type { Env, Variables, ApplicationRow, UserRow } from "@/types";
 import { requireAuth, requireTier } from "@/middleware/auth";
 import { buildOtpAuthUrl, generateTotpSecret } from "@/auth/totp";
+import { hashPassword, generateRandomPassword } from "@/auth/password";
 import { newId } from "@/lib/utils";
 import {
-  sendApplicationApprovedEmail,
-  sendTotpSetupEmail,
+  sendWelcomeEmail,
   sendApplicationRejectedEmail,
 } from "@/email/sender";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const applications = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -26,12 +27,20 @@ applications.post("/", async (c) => {
   const body = await c.req.json<{
     email?: string;
     answers?: Record<string, unknown>;
+    turnstileToken?: string;
   }>();
 
   const email = (body.email ?? "").trim().toLowerCase();
   if (!email || !email.includes("@")) {
     return c.json({ error: "请提供有效的邮箱地址" }, 400);
   }
+
+  const turnstile = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (!turnstile.ok) return c.json({ error: turnstile.error }, 400);
 
   // Check for existing pending/approved application
   const existing = await c.env.DB.prepare(
@@ -162,21 +171,26 @@ applications.patch("/:id", requireAuth, requireTier("ADMIN"), async (c) => {
         .run();
     }
 
-    c.executionCtx.waitUntil(
-      sendApplicationApprovedEmail(
-        { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-        { to: app.email, signInUrl: `${c.env.FRONTEND_URL}/sign-in`, userTier: user.tier },
-      ).catch((err) => {
-        console.error("Failed to send application approved email:", err);
-      }),
-    );
+    // Provision initial password as pending — promotes on first successful login
+    const initialPassword = generateRandomPassword();
+    const pendingHash = await hashPassword(initialPassword);
+    await c.env.DB.prepare(
+      "UPDATE users SET password_pending_hash = ?, updated_at = datetime('now') WHERE id = ?",
+    ).bind(pendingHash, user.id).run();
 
     c.executionCtx.waitUntil(
-      sendTotpSetupEmail(
+      sendWelcomeEmail(
         { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-        { to: app.email, secret, otpauthUrl, userTier: user.tier },
+        {
+          to: app.email,
+          signInUrl: `${c.env.FRONTEND_URL}/sign-in`,
+          secret,
+          otpauthUrl,
+          initialPassword,
+          userTier: user.tier,
+        },
       ).catch((err) => {
-        console.error("Failed to send TOTP setup email on application approval:", err);
+        console.error("Failed to send welcome email on application approval:", err);
       }),
     );
   } else {

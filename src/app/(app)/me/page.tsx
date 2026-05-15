@@ -25,24 +25,30 @@ type Registration = {
 export default function MeOverviewPage() {
   const { user } = useAuth();
   const [upcoming, setUpcoming] = React.useState<Registration[]>([]);
+  const [allRegs, setAllRegs] = React.useState<Registration[]>([]);
   const [pendingReqs, setPendingReqs] = React.useState(0);
   const [unreadNotif, setUnreadNotif] = React.useState(0);
 
   React.useEffect(() => {
     if (!user) return;
     api.users.myRegistrations().then((res: { registrations: unknown[] }) => {
+      const all = res.registrations as Registration[];
       const now = new Date();
-      const up = (res.registrations as Registration[]).filter(
-        (r: Registration) =>
-          ["CONFIRMED", "WAITLIST", "PENDING"].includes(r.status) &&
-          r.start_at &&
-          new Date(r.start_at) >= now,
-      );
-      up.sort(
-        (a: Registration, b: Registration) =>
-          new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
-      );
+
+      const up = all
+        .filter(
+          (r) =>
+            ["CONFIRMED", "WAITLIST", "PENDING"].includes(r.status) &&
+            r.start_at &&
+            new Date(r.start_at) >= now,
+        )
+        .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
       setUpcoming(up.slice(0, 5));
+
+      const sorted = all.sort(
+        (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime(),
+      );
+      setAllRegs(sorted.slice(0, 5));
     });
     api.users.myContactRequests().then((res: { requests: unknown[] }) => {
       const pending = (res.requests as { target_id: string; status: string }[]).filter(
@@ -106,40 +112,76 @@ export default function MeOverviewPage() {
         ) : (
           <div className="grid gap-3">
             {upcoming.map((r) => (
-              <Card key={r.id}>
-                <CardContent className="flex items-center justify-between gap-4 py-4">
-                  <div className="space-y-1">
-                    <div className="font-medium">
-                      <Link href={toQueryRoute(`/events/${r.slug}`)} className="hover:text-trans-blue-deep">
-                        {r.title}
-                      </Link>
-                    </div>
-                    <div className="text-xs text-ink-muted flex items-center gap-2 flex-wrap">
-                      <span>{formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : new Date(r.start_at))}</span>
-                      <span>·</span>
-                      <span>{relativeTime(new Date(r.start_at))}</span>
-                      {r.format === "OFFLINE" && r.city ? (
-                        <>
-                          <span>·</span>
-                          <span>{r.city}</span>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                  <Badge
-                    variant={
-                      r.status === "CONFIRMED" ? "success" : r.status === "WAITLIST" ? "warn" : "outline"
-                    }
-                  >
-                    {r.status === "CONFIRMED" ? "已确认" : r.status === "WAITLIST" ? "候补" : "待审核"}
-                  </Badge>
-                </CardContent>
-              </Card>
+              <RegistrationRow key={r.id} r={r} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-end justify-between">
+          <h2 className="font-serif text-h2 tracking-tight">我的活动报名</h2>
+          <Link href={toQueryRoute("/me/registrations")} className="text-sm text-trans-blue-deep hover:underline">
+            查看全部
+          </Link>
+        </div>
+        {allRegs.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-ink-muted">
+              还没有报名过活动。
+              <Button asChild variant="link" className="ml-1">
+                <Link href={toQueryRoute("/events")}>浏览活动</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {allRegs.map((r) => (
+              <RegistrationRow key={r.id} r={r} />
             ))}
           </div>
         )}
       </section>
     </div>
+  );
+}
+
+const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warn" | "outline" | "danger" }> = {
+  PENDING: { label: "待审核", variant: "warn" },
+  CONFIRMED: { label: "已确认", variant: "success" },
+  WAITLIST: { label: "候补", variant: "warn" },
+  DECLINED: { label: "未通过", variant: "outline" },
+  CANCELLED: { label: "已取消", variant: "outline" },
+  CHECKED_IN: { label: "已签到", variant: "success" },
+  NO_SHOW: { label: "未到场", variant: "danger" },
+};
+
+function RegistrationRow({ r }: { r: Registration }) {
+  const s = STATUS_LABEL[r.status] ?? { label: r.status, variant: "outline" as const };
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between gap-4 py-4">
+        <div className="space-y-1">
+          <div className="font-medium">
+            <Link href={toQueryRoute(`/events/${r.slug}`)} className="hover:text-trans-blue-deep">
+              {r.title}
+            </Link>
+          </div>
+          <div className="text-xs text-ink-muted flex items-center gap-2 flex-wrap">
+            <span>{formatTimeRange(new Date(r.start_at), r.end_at ? new Date(r.end_at) : new Date(r.start_at))}</span>
+            <span>·</span>
+            <span>{relativeTime(new Date(r.start_at))}</span>
+            {r.format === "OFFLINE" && r.city ? (
+              <>
+                <span>·</span>
+                <span>{r.city}</span>
+              </>
+            ) : null}
+          </div>
+        </div>
+        <Badge variant={s.variant}>{s.label}</Badge>
+      </CardContent>
+    </Card>
   );
 }
 

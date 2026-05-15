@@ -462,4 +462,44 @@ users.get("/me/registrations", requireAuth, async (c) => {
   return c.json({ registrations: regs.results });
 });
 
+// GET /api/users/me/export — download own data
+users.get("/me/export", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+
+  const user = await c.env.DB.prepare(
+    "SELECT id, handle, display_name, pronouns, gender_identity, bio, avatar_url, email, tier, status, created_at, updated_at FROM users WHERE id = ?",
+  )
+    .bind(viewer.id)
+    .first();
+
+  const contacts = await c.env.DB.prepare(
+    "SELECT kind, value, label, visibility FROM contact_methods WHERE user_id = ? ORDER BY sort_order ASC",
+  )
+    .bind(viewer.id)
+    .all();
+
+  const registrations = await c.env.DB.prepare(
+    `SELECT r.status, r.created_at, e.title, e.slug, e.start_at, e.end_at
+     FROM registrations r JOIN events e ON e.id = r.event_id
+     WHERE r.user_id = ?
+     ORDER BY e.start_at DESC`,
+  )
+    .bind(viewer.id)
+    .all();
+
+  const notifications = await c.env.DB.prepare(
+    "SELECT kind, payload, read_at, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC",
+  )
+    .bind(viewer.id)
+    .all();
+
+  return c.json({
+    exported_at: new Date().toISOString(),
+    profile: user,
+    contacts: contacts.results,
+    registrations: registrations.results,
+    notifications: notifications.results,
+  });
+});
+
 export default users;
