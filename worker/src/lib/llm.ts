@@ -34,6 +34,32 @@ export type ModerationInput = {
   authorTier: string;
 };
 
+export type EventCategory =
+  | "PSYCH_SUPPORT"
+  | "SOCIAL"
+  | "SPORTS"
+  | "ONLINE_GAMING"
+  | "STUDY"
+  | "WORKSHOP"
+  | "ADVOCACY"
+  | "OTHER";
+
+export type EventFormat = "ONLINE" | "OFFLINE" | "HYBRID";
+
+export type EventDraft = {
+  title?: string;
+  description?: string;
+  category?: EventCategory;
+  format?: EventFormat;
+  /** ISO-8601 datetime string, e.g. 2026-06-21T14:00:00+08:00 */
+  startAt?: string;
+  endAt?: string;
+  city?: string;
+  preciseAddr?: string;
+  onlineUrl?: string;
+  capacity?: number;
+};
+
 export type ModerationDecision = {
   verdict: ModerationVerdict;
   reason: string;
@@ -42,13 +68,19 @@ export type ModerationDecision = {
   categories: string[];
   classifier: "LLM" | "FALLBACK";
   raw: string;
+  /** Only populated when section==="EVENT". Best-effort extraction from prose. */
+  eventDraft?: EventDraft;
+  /** True when eventDraft has every field needed to create a valid event row. */
+  eventDraftComplete?: boolean;
+  /** Human-readable Chinese labels of missing fields (for the user-facing prompt). */
+  eventDraftMissing?: string[];
 };
 
 const REQUEST_TIMEOUT_MS = 15000;
 
 const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审核与分类助手。
 
-任务（一次性输出 JSON,覆盖以下四件事）:
+任务(一次性输出 JSON):
 
 1) verdict — 内容是否违规
    - "reject": 明显违规(色情/约炮、药品/激素非法买卖、广告拉客、违法违规、人身攻击、仇恨言论)
@@ -56,32 +88,40 @@ const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审�
    - "pass":  正常合规
 
 2) section — 顶层归属
-   - "EVENT":     是组织线下/线上集体活动的提议或邀请
+   - "EVENT":     是组织线下/线上集体活动的提议或邀请(明确想叫人来参加一个具体的活动)
    - "MEDICAL":   涉及医疗、HRT、心理、医院、医生、医学知识、学术研究、个人就诊或用药经历
-   - "RESOURCE":  提供或寻求帮助/技能/资源(找室友、求陪伴、能提供翻译等)
+   - "RESOURCE":  提供或寻求帮助/技能/资源
    - "POST":      其他日常分享、心情、提问
 
 3) tags — 从下面受控词表选 1~3 个最贴切:
-   - medical-hospital-review (具体医院/医生的就诊或预约体验)
-   - medical-science         (跨性别医疗科普、研究、知识、学术进展)
-   - medical-experience      (作者自己的 HRT/手术/复诊经历分享,不针对具体医生)
-   - resource-offer          (我可以提供的技能/物品/帮助)
-   - resource-request        (我需要的帮助、求人)
-   - question-help           (提问/求建议/不知道怎么办)
-   - share-life              (一般生活、心情、小事分享)
-   - share-resource          (转发外部资源链接、推荐书单/影单)
-   - announcement            (社群通知、活动预告、招募)
+   - medical-hospital-review, medical-science, medical-experience
+   - resource-offer, resource-request
+   - question-help, share-life, share-resource, announcement
 
 4) categories — verdict 是 reject/flag 时填命中的违规分类标签(porn/hookup/drug/ad/illegal/attack 等)
 
-重要:
+5) 仅当 section==="EVENT" 时,**额外输出**:
+   - eventDraft: 一个对象,尽量从原文提取下列字段(无法提取就省略该字段):
+     * title (必填,短标题)
+     * description (必填,可在原文基础上稍作整理)
+     * category: 从 PSYCH_SUPPORT/SOCIAL/SPORTS/ONLINE_GAMING/STUDY/WORKSHOP/ADVOCACY/OTHER 选一个
+     * format: ONLINE / OFFLINE / HYBRID
+     * startAt: ISO-8601 格式时间,带时区,如 "2026-06-21T14:00:00+08:00"。当前日期是 ${new Date().toISOString().slice(0, 10)},「这周六」「下个月3号」等相对时间请展开为绝对时间
+     * endAt: 同上;若原文只给开始时间,可按 2 小时估算
+     * city: OFFLINE/HYBRID 必填,城市名
+     * preciseAddr: 精确地址(可选)
+     * onlineUrl: 会议链接(可选)
+     * capacity: 人数上限(可选)
+   - eventDraftComplete: true 当且仅当 (title + description + category + format + startAt + endAt) 都有,且 format=OFFLINE/HYBRID 时 city 也有
+   - eventDraftMissing: 中文字段名数组,列出缺少的必填字段(如 ["开始时间","城市"])。complete=true 时空数组。
+
+约束:
 - 即便用户没说自己想发到哪里,你也要给出最合适的 section。
 - 不要因为「没填医院名」就拒绝医疗科普类内容。医疗科普/知识/学术/经验分享都允许 pass。
-- 仅 TRUSTED/ADMIN 等级才有资格发起活动。如果 kind=POST 但内容明显是要发起活动而且 authorTier 不是 TRUSTED/ADMIN,verdict=reject,reason 引导对方改发到非活动板块或联系信任成员组织。
-- 评论(kind=COMMENT)统一返回 section=POST,tags=[]。
+- 评论(kind=COMMENT)统一返回 section=POST,tags=[],不需要 eventDraft。
 
-返回严格 JSON(不要 markdown 围栏、不要前后多余文字):
-{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...]}`;
+返回严格 JSON(不要 markdown 围栏、不要前后多余文字)。section!=EVENT 时不需要 eventDraft 字段:
+{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...],"eventDraft":{...},"eventDraftComplete":bool,"eventDraftMissing":[...]}`;
 
 const XIAO_T_SYSTEM_PROMPT = `你是「小T」,跨性别社群里的 AI 陪伴员。
 
@@ -116,6 +156,59 @@ function fallbackDecision(reason: string): ModerationDecision {
     classifier: "FALLBACK",
     raw: "",
   };
+}
+
+const EVENT_CATEGORIES: EventCategory[] = [
+  "PSYCH_SUPPORT", "SOCIAL", "SPORTS", "ONLINE_GAMING",
+  "STUDY", "WORKSHOP", "ADVOCACY", "OTHER",
+];
+const EVENT_FORMATS: EventFormat[] = ["ONLINE", "OFFLINE", "HYBRID"];
+
+function normalizeEventDraft(value: unknown): EventDraft | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as Record<string, unknown>;
+  const out: EventDraft = {};
+  if (typeof v.title === "string" && v.title.trim()) out.title = v.title.trim().slice(0, 200);
+  if (typeof v.description === "string" && v.description.trim())
+    out.description = v.description.trim().slice(0, 8000);
+  if (typeof v.category === "string") {
+    const upper = v.category.toUpperCase() as EventCategory;
+    if (EVENT_CATEGORIES.includes(upper)) out.category = upper;
+  }
+  if (typeof v.format === "string") {
+    const upper = v.format.toUpperCase() as EventFormat;
+    if (EVENT_FORMATS.includes(upper)) out.format = upper;
+  }
+  if (typeof v.startAt === "string" && !Number.isNaN(Date.parse(v.startAt))) out.startAt = v.startAt;
+  if (typeof v.endAt === "string" && !Number.isNaN(Date.parse(v.endAt))) out.endAt = v.endAt;
+  if (typeof v.city === "string" && v.city.trim()) out.city = v.city.trim().slice(0, 40);
+  if (typeof v.preciseAddr === "string" && v.preciseAddr.trim())
+    out.preciseAddr = v.preciseAddr.trim().slice(0, 200);
+  if (typeof v.onlineUrl === "string" && v.onlineUrl.trim()) out.onlineUrl = v.onlineUrl.trim();
+  if (typeof v.capacity === "number" && Number.isFinite(v.capacity) && v.capacity > 0)
+    out.capacity = Math.min(10000, Math.floor(v.capacity));
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function computeDraftCompleteness(
+  draft: EventDraft | undefined,
+): { complete: boolean; missing: string[] } {
+  if (!draft) return { complete: false, missing: ["标题", "描述", "时间", "形式", "类别"] };
+  const missing: string[] = [];
+  if (!draft.title) missing.push("标题");
+  if (!draft.description) missing.push("描述");
+  if (!draft.category) missing.push("活动类别");
+  if (!draft.format) missing.push("线上/线下");
+  if (!draft.startAt) missing.push("开始时间");
+  if (!draft.endAt) missing.push("结束时间");
+  if ((draft.format === "OFFLINE" || draft.format === "HYBRID") && !draft.city) {
+    missing.push("城市");
+  }
+  // End must be after start.
+  if (draft.startAt && draft.endAt && Date.parse(draft.endAt) <= Date.parse(draft.startAt)) {
+    missing.push("有效的时间范围(结束须晚于开始)");
+  }
+  return { complete: missing.length === 0, missing };
 }
 
 function parseJsonOutput(text: string): Record<string, unknown> | null {
@@ -253,7 +346,9 @@ export async function moderateAndClassify(
   let raw: string;
   try {
     const result = await withRetry(
-      () => callLLM(env, MOD_SYSTEM_PROMPT, buildModerationUserMessage(input), 500),
+      // 1500 tokens leaves room for both the model's "thinking" content and a
+      // structured eventDraft block on EVENT-classified posts.
+      () => callLLM(env, MOD_SYSTEM_PROMPT, buildModerationUserMessage(input), 1500),
       { label: "moderate", shouldRetry: shouldRetryLlm },
     );
     text = result.text;
@@ -283,6 +378,26 @@ export async function moderateAndClassify(
           ? "内容已转人工复核"
           : "内容符合规范";
 
+  let eventDraft: EventDraft | undefined;
+  let eventDraftComplete: boolean | undefined;
+  let eventDraftMissing: string[] | undefined;
+  if (section === "EVENT") {
+    eventDraft = normalizeEventDraft(parsed.eventDraft);
+    const overrideComplete = typeof parsed.eventDraftComplete === "boolean"
+      ? parsed.eventDraftComplete
+      : undefined;
+    const computed = computeDraftCompleteness(eventDraft);
+    eventDraftComplete = overrideComplete ?? computed.complete;
+    eventDraftMissing = Array.isArray(parsed.eventDraftMissing)
+      ? parsed.eventDraftMissing.filter((s): s is string => typeof s === "string").slice(0, 10)
+      : computed.missing;
+    // If model said complete=true but we still see required fields missing, trust the audit.
+    if (eventDraftComplete && computed.missing.length > 0) {
+      eventDraftComplete = false;
+      eventDraftMissing = computed.missing;
+    }
+  }
+
   return {
     verdict,
     reason,
@@ -291,6 +406,9 @@ export async function moderateAndClassify(
     categories,
     classifier: "LLM",
     raw,
+    eventDraft,
+    eventDraftComplete,
+    eventDraftMissing,
   };
 }
 
@@ -325,6 +443,8 @@ export const __internal = {
   normalizeVerdict,
   normalizeSection,
   normalizeStringArray,
+  normalizeEventDraft,
+  computeDraftCompleteness,
   extractText,
   fallbackDecision,
   shouldRetryLlm,

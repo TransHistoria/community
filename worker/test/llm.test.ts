@@ -110,6 +110,79 @@ describe("llm parsers", () => {
     });
     expect(out).toBe("hello\nworld");
   });
+
+  it("normalizeEventDraft accepts well-formed input and trims fields", () => {
+    const draft = __internal.normalizeEventDraft({
+      title: "  周末聚会  ",
+      description: "讲个简单的活动",
+      category: "social",
+      format: "OFFLINE",
+      startAt: "2026-06-21T14:00:00+08:00",
+      endAt: "2026-06-21T16:00:00+08:00",
+      city: "上海",
+      capacity: 30,
+    });
+    expect(draft).toEqual({
+      title: "周末聚会",
+      description: "讲个简单的活动",
+      category: "SOCIAL",
+      format: "OFFLINE",
+      startAt: "2026-06-21T14:00:00+08:00",
+      endAt: "2026-06-21T16:00:00+08:00",
+      city: "上海",
+      capacity: 30,
+    });
+  });
+
+  it("normalizeEventDraft drops invalid category and bad dates", () => {
+    const draft = __internal.normalizeEventDraft({
+      title: "x",
+      category: "MADE_UP",
+      startAt: "not-a-date",
+    });
+    expect(draft?.category).toBeUndefined();
+    expect(draft?.startAt).toBeUndefined();
+  });
+
+  it("computeDraftCompleteness flags missing required fields", () => {
+    const { complete, missing } = __internal.computeDraftCompleteness({
+      title: "x",
+      description: "y",
+      category: "SOCIAL",
+      format: "OFFLINE",
+      // missing startAt, endAt, city
+    });
+    expect(complete).toBe(false);
+    expect(missing).toContain("开始时间");
+    expect(missing).toContain("结束时间");
+    expect(missing).toContain("城市");
+  });
+
+  it("computeDraftCompleteness passes a fully-spec'd draft", () => {
+    const { complete, missing } = __internal.computeDraftCompleteness({
+      title: "x",
+      description: "y",
+      category: "SOCIAL",
+      format: "ONLINE",
+      startAt: "2026-06-21T14:00:00+08:00",
+      endAt: "2026-06-21T16:00:00+08:00",
+    });
+    expect(complete).toBe(true);
+    expect(missing).toEqual([]);
+  });
+
+  it("computeDraftCompleteness rejects backward time range", () => {
+    const { complete, missing } = __internal.computeDraftCompleteness({
+      title: "x",
+      description: "y",
+      category: "SOCIAL",
+      format: "ONLINE",
+      startAt: "2026-06-21T16:00:00+08:00",
+      endAt: "2026-06-21T14:00:00+08:00",
+    });
+    expect(complete).toBe(false);
+    expect(missing.some((m) => m.includes("时间范围"))).toBe(true);
+  });
 });
 
 describe("withRetry", () => {
@@ -230,6 +303,54 @@ describe("moderateAndClassify", () => {
       authorTier: "VERIFIED",
     });
     expect(decision.verdict).toBe("flag");
+  });
+
+  it("extracts eventDraft when section=EVENT", async () => {
+    queueText(JSON.stringify({
+      verdict: "pass",
+      reason: "活动召集",
+      section: "EVENT",
+      tags: ["announcement"],
+      categories: [],
+      eventDraft: {
+        title: "周六读书会",
+        description: "讨论《姐妹》",
+        category: "STUDY",
+        format: "ONLINE",
+        startAt: "2026-06-21T14:00:00+08:00",
+        endAt: "2026-06-21T16:00:00+08:00",
+      },
+      eventDraftComplete: true,
+      eventDraftMissing: [],
+    }));
+    const decision = await moderateAndClassify(makeEnv(), {
+      kind: "POST",
+      body: "周六下午两点线上读书会",
+      authorTier: "TRUSTED",
+    });
+    expect(decision.section).toBe("EVENT");
+    expect(decision.eventDraftComplete).toBe(true);
+    expect(decision.eventDraft?.title).toBe("周六读书会");
+  });
+
+  it("reports incomplete eventDraft when fields missing", async () => {
+    queueText(JSON.stringify({
+      verdict: "pass",
+      reason: "活动召集",
+      section: "EVENT",
+      tags: [],
+      categories: [],
+      eventDraft: { title: "聚会", format: "OFFLINE" },
+      eventDraftComplete: false,
+      eventDraftMissing: ["描述", "开始时间", "城市"],
+    }));
+    const decision = await moderateAndClassify(makeEnv(), {
+      kind: "POST",
+      body: "下周聚一下吧",
+      authorTier: "TRUSTED",
+    });
+    expect(decision.eventDraftComplete).toBe(false);
+    expect(decision.eventDraftMissing).toContain("城市");
   });
 });
 

@@ -104,6 +104,38 @@ function notificationText(n: Notification): { title: string; href?: string } {
         href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
       };
     }
+    case "POST_BLOCKED_EVENT": {
+      const title = strField("title");
+      return {
+        title: title
+          ? `「${title}」未发布:看似活动召集,需要 TRUSTED 及以上权限`
+          : "你的内容看似活动召集,未能发布(需要 TRUSTED 权限)",
+      };
+    }
+    case "POST_RELOCATED_TO_EVENT": {
+      const eventSlug = strField("eventSlug");
+      const title = strField("title");
+      return {
+        title: title
+          ? `「${title}」已自动迁移到活动区`
+          : "你发的帖子已迁移到活动区",
+        href: eventSlug ? toQueryRoute(`/events/${eventSlug}`) : toQueryRoute("/events"),
+      };
+    }
+    case "POST_NEEDS_EVENT_INFO": {
+      const postId = strField("postId");
+      const title = strField("title");
+      const missingRaw = p.missing;
+      const missing = Array.isArray(missingRaw)
+        ? (missingRaw as unknown[]).filter((x): x is string => typeof x === "string").join("、")
+        : "";
+      return {
+        title: title
+          ? `「${title}」像是活动但信息不全${missing ? `:缺 ${missing}` : ""}`
+          : "你的帖子像是活动,但信息不全",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
     case "EVENT_APPROVED":
       return { title: eventTitle ? `「${eventTitle}」已发布` : "活动已发布", href: eventHref };
     case "EVENT_PENDING_REVIEW":
