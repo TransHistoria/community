@@ -4,13 +4,14 @@ import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Trash2, ArrowLeft } from "lucide-react";
+import { Trash2, ArrowLeft, Pencil } from "lucide-react";
 import { api, type Post } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommentSection } from "@/components/post/CommentSection";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { useToast } from "@/components/ui/toast-context";
 import { TAG_LABEL, parsePostTags } from "@/lib/post-tags";
 import { relativeTime } from "@/lib/utils";
@@ -138,13 +139,23 @@ function PostDetailInner() {
         </div>
         <div className="prose-trans whitespace-pre-wrap text-base leading-relaxed">{post.body}</div>
 
-        {(isAuthor || isAdmin) ? (
-          <div className="flex justify-end gap-2 pt-4 border-t border-border">
-            <Button variant="ghost" size="sm" onClick={remove}>
-              <Trash2 className="h-4 w-4" /> 删除
-            </Button>
-          </div>
-        ) : null}
+        <div className="flex justify-end gap-2 pt-4 border-t border-border">
+          {!isAuthor && user ? (
+            <ReportButton targetType="POST" targetId={post.id} />
+          ) : null}
+          {(isAuthor || isAdmin) ? (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={toQueryRoute(`/posts/${post.id}/edit`)}>
+                  <Pencil className="h-4 w-4" /> 编辑
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={remove}>
+                <Trash2 className="h-4 w-4" /> 删除
+              </Button>
+            </>
+          ) : null}
+        </div>
       </article>
 
       {post.status === "PUBLISHED" ? <CommentSection postId={post.id} /> : null}

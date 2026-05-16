@@ -20,7 +20,7 @@ reports.post("/", requireAuth, async (c) => {
     return c.json({ error: "参数缺失" }, 400);
   }
 
-  const VALID_TYPES = ["USER", "EVENT", "COMMENT"];
+  const VALID_TYPES = ["USER", "EVENT", "COMMENT", "POST"];
   if (!VALID_TYPES.includes(body.targetType)) {
     return c.json({ error: "无效的举报类型" }, 400);
   }

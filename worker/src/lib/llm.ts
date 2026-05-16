@@ -60,6 +60,14 @@ export type EventDraft = {
   capacity?: number;
 };
 
+/**
+ * Distinguishes between "I'm organising a new activity" (needs TRUSTED+
+ * activity-creation rights) and "I'm just talking about an activity"
+ * (shared news, retrospective, discussion question — fine as a regular post).
+ * Only set when section==="EVENT".
+ */
+export type EventIntent = "ORGANIZING" | "DISCUSSING";
+
 export type ModerationDecision = {
   verdict: ModerationVerdict;
   reason: string;
@@ -68,6 +76,8 @@ export type ModerationDecision = {
   categories: string[];
   classifier: "LLM" | "FALLBACK";
   raw: string;
+  /** Only populated when section==="EVENT". */
+  eventIntent?: EventIntent;
   /** Only populated when section==="EVENT". Best-effort extraction from prose. */
   eventDraft?: EventDraft;
   /** True when eventDraft has every field needed to create a valid event row. */
@@ -88,7 +98,7 @@ const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审�
    - "pass":  正常合规
 
 2) section — 顶层归属
-   - "EVENT":     是组织线下/线上集体活动的提议或邀请(明确想叫人来参加一个具体的活动)
+   - "EVENT":     涉及一个具体活动/聚会/线上会议(可以是组织、邀请,也可以是分享、回顾、讨论)
    - "MEDICAL":   涉及医疗、HRT、心理、医院、医生、医学知识、学术研究、个人就诊或用药经历
    - "RESOURCE":  提供或寻求帮助/技能/资源
    - "POST":      其他日常分享、心情、提问
@@ -101,7 +111,12 @@ const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审�
 4) categories — verdict 是 reject/flag 时填命中的违规分类标签(porn/hookup/drug/ad/illegal/attack 等)
 
 5) 仅当 section==="EVENT" 时,**额外输出**:
-   - eventDraft: 一个对象,尽量从原文提取下列字段(无法提取就省略该字段):
+   - eventIntent: 进一步区分作者意图
+     * "ORGANIZING": 作者本人想发起一次具体的活动,在召集人来参加(有"我打算"/"邀请大家"/"扫码报名"/明确给出时间地点等信号)
+     * "DISCUSSING": 作者只是分享、回顾、转发、提问某个活动(包括转发别人的活动信息、回忆刚参加完的聚会、咨询某活动的细节)。即便提到了时间/地点,只要作者不是在召集,就归到这里。
+     判断时要谨慎,凡是不确定"作者要不要别人因此而来参加"的,默认 DISCUSSING。
+
+   - eventDraft: 仅当 eventIntent==="ORGANIZING" 时填,一个对象,尽量从原文提取下列字段(无法提取就省略该字段):
      * title (必填,短标题)
      * description (必填,可在原文基础上稍作整理)
      * category: 从 PSYCH_SUPPORT/SOCIAL/SPORTS/ONLINE_GAMING/STUDY/WORKSHOP/ADVOCACY/OTHER 选一个
@@ -120,8 +135,8 @@ const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审�
 - 不要因为「没填医院名」就拒绝医疗科普类内容。医疗科普/知识/学术/经验分享都允许 pass。
 - 评论(kind=COMMENT)统一返回 section=POST,tags=[],不需要 eventDraft。
 
-返回严格 JSON(不要 markdown 围栏、不要前后多余文字)。section!=EVENT 时不需要 eventDraft 字段:
-{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...],"eventDraft":{...},"eventDraftComplete":bool,"eventDraftMissing":[...]}`;
+返回严格 JSON(不要 markdown 围栏、不要前后多余文字)。section!=EVENT 时不需要 eventIntent/eventDraft 字段:
+{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...],"eventIntent":"ORGANIZING|DISCUSSING","eventDraft":{...},"eventDraftComplete":bool,"eventDraftMissing":[...]}`;
 
 const XIAO_T_SYSTEM_PROMPT = `你是「小T」,跨性别社群里的 AI 陪伴员。
 
@@ -163,6 +178,13 @@ const EVENT_CATEGORIES: EventCategory[] = [
   "STUDY", "WORKSHOP", "ADVOCACY", "OTHER",
 ];
 const EVENT_FORMATS: EventFormat[] = ["ONLINE", "OFFLINE", "HYBRID"];
+
+function normalizeEventIntent(value: unknown): EventIntent | undefined {
+  if (typeof value !== "string") return undefined;
+  const v = value.toUpperCase();
+  if (v === "ORGANIZING" || v === "DISCUSSING") return v;
+  return undefined;
+}
 
 function normalizeEventDraft(value: unknown): EventDraft | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -346,9 +368,11 @@ export async function moderateAndClassify(
   let raw: string;
   try {
     const result = await withRetry(
-      // 1500 tokens leaves room for both the model's "thinking" content and a
-      // structured eventDraft block on EVENT-classified posts.
-      () => callLLM(env, MOD_SYSTEM_PROMPT, buildModerationUserMessage(input), 1500),
+      // Generous token budget — deepseek-v4-flash spends a lot of its output
+      // on the "thinking" block before emitting JSON; plus the full schema
+      // (verdict + section + tags + categories + eventIntent + eventDraft)
+      // can take 300+ tokens by itself. Keep room for both.
+      () => callLLM(env, MOD_SYSTEM_PROMPT, buildModerationUserMessage(input), 9000),
       { label: "moderate", shouldRetry: shouldRetryLlm },
     );
     text = result.text;
@@ -378,23 +402,29 @@ export async function moderateAndClassify(
           ? "内容已转人工复核"
           : "内容符合规范";
 
+  let eventIntent: EventIntent | undefined;
   let eventDraft: EventDraft | undefined;
   let eventDraftComplete: boolean | undefined;
   let eventDraftMissing: string[] | undefined;
   if (section === "EVENT") {
-    eventDraft = normalizeEventDraft(parsed.eventDraft);
-    const overrideComplete = typeof parsed.eventDraftComplete === "boolean"
-      ? parsed.eventDraftComplete
-      : undefined;
-    const computed = computeDraftCompleteness(eventDraft);
-    eventDraftComplete = overrideComplete ?? computed.complete;
-    eventDraftMissing = Array.isArray(parsed.eventDraftMissing)
-      ? parsed.eventDraftMissing.filter((s): s is string => typeof s === "string").slice(0, 10)
-      : computed.missing;
-    // If model said complete=true but we still see required fields missing, trust the audit.
-    if (eventDraftComplete && computed.missing.length > 0) {
-      eventDraftComplete = false;
-      eventDraftMissing = computed.missing;
+    // Default to DISCUSSING when the model omits intent — it's the safer
+    // interpretation (we don't want to block VERIFIED users for talking
+    // about an activity).
+    eventIntent = normalizeEventIntent(parsed.eventIntent) ?? "DISCUSSING";
+    if (eventIntent === "ORGANIZING") {
+      eventDraft = normalizeEventDraft(parsed.eventDraft);
+      const overrideComplete = typeof parsed.eventDraftComplete === "boolean"
+        ? parsed.eventDraftComplete
+        : undefined;
+      const computed = computeDraftCompleteness(eventDraft);
+      eventDraftComplete = overrideComplete ?? computed.complete;
+      eventDraftMissing = Array.isArray(parsed.eventDraftMissing)
+        ? parsed.eventDraftMissing.filter((s): s is string => typeof s === "string").slice(0, 10)
+        : computed.missing;
+      if (eventDraftComplete && computed.missing.length > 0) {
+        eventDraftComplete = false;
+        eventDraftMissing = computed.missing;
+      }
     }
   }
 
@@ -406,6 +436,7 @@ export async function moderateAndClassify(
     categories,
     classifier: "LLM",
     raw,
+    eventIntent,
     eventDraft,
     eventDraftComplete,
     eventDraftMissing,
@@ -443,6 +474,7 @@ export const __internal = {
   normalizeVerdict,
   normalizeSection,
   normalizeStringArray,
+  normalizeEventIntent,
   normalizeEventDraft,
   computeDraftCompleteness,
   extractText,

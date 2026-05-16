@@ -171,6 +171,14 @@ describe("llm parsers", () => {
     expect(missing).toEqual([]);
   });
 
+  it("normalizeEventIntent handles strings case-insensitively", () => {
+    expect(__internal.normalizeEventIntent("organizing")).toBe("ORGANIZING");
+    expect(__internal.normalizeEventIntent("DISCUSSING")).toBe("DISCUSSING");
+    expect(__internal.normalizeEventIntent("Discussing")).toBe("DISCUSSING");
+    expect(__internal.normalizeEventIntent("other")).toBeUndefined();
+    expect(__internal.normalizeEventIntent(null)).toBeUndefined();
+  });
+
   it("computeDraftCompleteness rejects backward time range", () => {
     const { complete, missing } = __internal.computeDraftCompleteness({
       title: "x",
@@ -305,13 +313,14 @@ describe("moderateAndClassify", () => {
     expect(decision.verdict).toBe("flag");
   });
 
-  it("extracts eventDraft when section=EVENT", async () => {
+  it("extracts eventDraft when section=EVENT + intent=ORGANIZING", async () => {
     queueText(JSON.stringify({
       verdict: "pass",
       reason: "活动召集",
       section: "EVENT",
       tags: ["announcement"],
       categories: [],
+      eventIntent: "ORGANIZING",
       eventDraft: {
         title: "周六读书会",
         description: "讨论《姐妹》",
@@ -329,17 +338,55 @@ describe("moderateAndClassify", () => {
       authorTier: "TRUSTED",
     });
     expect(decision.section).toBe("EVENT");
+    expect(decision.eventIntent).toBe("ORGANIZING");
     expect(decision.eventDraftComplete).toBe(true);
     expect(decision.eventDraft?.title).toBe("周六读书会");
   });
 
-  it("reports incomplete eventDraft when fields missing", async () => {
+  it("EVENT with DISCUSSING intent has no eventDraft", async () => {
+    queueText(JSON.stringify({
+      verdict: "pass",
+      reason: "在分享/讨论某活动",
+      section: "EVENT",
+      tags: ["share-life"],
+      categories: [],
+      eventIntent: "DISCUSSING",
+    }));
+    const decision = await moderateAndClassify(makeEnv(), {
+      kind: "POST",
+      body: "昨天去了那个聚会,大家都很热情~",
+      authorTier: "VERIFIED",
+    });
+    expect(decision.section).toBe("EVENT");
+    expect(decision.eventIntent).toBe("DISCUSSING");
+    expect(decision.eventDraft).toBeUndefined();
+    expect(decision.eventDraftComplete).toBeUndefined();
+  });
+
+  it("EVENT without explicit intent defaults to DISCUSSING (safer)", async () => {
+    queueText(JSON.stringify({
+      verdict: "pass",
+      reason: "提了一下某活动",
+      section: "EVENT",
+      tags: [],
+      categories: [],
+    }));
+    const decision = await moderateAndClassify(makeEnv(), {
+      kind: "POST",
+      body: "其他人都去那个聚会了吗",
+      authorTier: "VERIFIED",
+    });
+    expect(decision.eventIntent).toBe("DISCUSSING");
+  });
+
+  it("reports incomplete eventDraft when fields missing (ORGANIZING)", async () => {
     queueText(JSON.stringify({
       verdict: "pass",
       reason: "活动召集",
       section: "EVENT",
       tags: [],
       categories: [],
+      eventIntent: "ORGANIZING",
       eventDraft: { title: "聚会", format: "OFFLINE" },
       eventDraftComplete: false,
       eventDraftMissing: ["描述", "开始时间", "城市"],

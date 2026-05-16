@@ -370,11 +370,18 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     authorTier: viewer.tier,
   });
 
-  // === Posts board does not allow EVENT content. ===
-  // - no permission (< TRUSTED): refuse to save the post at all + notify.
-  // - has permission + draft complete: auto-create activity, skip saving post.
-  // - has permission + draft incomplete: save post as PENDING_REVIEW, ask author to fill in missing fields.
-  if (decision.section === "EVENT") {
+  // === Posts board does not host ORGANIZING activity content. ===
+  // The LLM splits EVENT into two intents:
+  //   - "DISCUSSING": user is just sharing/asking about an activity.
+  //     Treat as a normal POST so VERIFIED members aren't blocked from
+  //     conversation just because they mentioned a meetup.
+  //   - "ORGANIZING": user is calling people to attend a new activity.
+  //     Activities require TRUSTED+, so:
+  //       < TRUSTED: refuse to save the post at all + notify.
+  //       TRUSTED+ + draft complete: auto-create activity, skip saving post.
+  //       TRUSTED+ + draft incomplete: save post as PENDING_REVIEW with
+  //                                    missing-field hints.
+  if (decision.section === "EVENT" && decision.eventIntent === "ORGANIZING") {
     if (rank(viewer.tier) < rank("TRUSTED")) {
       const reason = "内容看起来是要组织活动。社群活动需要由 TRUSTED 及以上成员发起,你可以联系组织者代发。";
       await notify(c.env.DB, viewer.id, "POST_BLOCKED_EVENT", {
@@ -619,9 +626,10 @@ posts.patch("/:id", requireAuth, async (c) => {
     authorTier: viewer.tier,
   });
 
-  // EVENT-shaped edits: refuse without changing status. We don't auto-migrate
-  // on PATCH because the post already exists and may have comments.
-  if (decision.section === "EVENT") {
+  // EVENT-shaped edits that look like *organising* a new activity: refuse.
+  // We don't auto-migrate on PATCH because the post already exists and may
+  // have comments. DISCUSSING-intent edits fall through and save as POST.
+  if (decision.section === "EVENT" && decision.eventIntent === "ORGANIZING") {
     return c.json({
       error: "修改后的内容像是要组织活动,请保留原帖或去活动模块发起新活动。",
     }, 400);
