@@ -182,7 +182,8 @@ export interface Registration {
 
 export interface Comment {
   id: string;
-  event_id: string;
+  event_id: string | null;
+  post_id: string | null;
   author_id: string;
   body: string;
   parent_id: string | null;
@@ -192,6 +193,46 @@ export interface Comment {
   author_handle: string;
   author_name: string;
   author_avatar: string | null;
+}
+
+export interface ModerationDecision {
+  verdict: "pass" | "flag" | "reject";
+  reason: string;
+  section: "POST" | "MEDICAL" | "RESOURCE" | "EVENT";
+  categories: string[];
+  classifier: "LLM" | "FALLBACK" | "KEYWORD" | "MANUAL";
+  raw?: string;
+}
+
+export interface Post {
+  id: string;
+  author_id: string;
+  section: "POST" | "MEDICAL" | "RESOURCE";
+  title: string;
+  body: string;
+  tags: string;
+  hospital: string | null;
+  doctor: string | null;
+  city: string | null;
+  resource_kind: string | null;
+  cover_url: string | null;
+  visibility: string;
+  status: "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "HIDDEN";
+  moderation_verdict: string | null;
+  moderation_reason: string | null;
+  moderation_categories: string | null;
+  moderation_raw: string | null;
+  moderation_classifier: string | null;
+  moderated_at: string | null;
+  reviewed_by_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  author_handle: string;
+  author_name: string;
+  author_avatar?: string | null;
+  comment_count?: number;
+  canEdit?: boolean;
 }
 
 export interface ContactMethod {
@@ -386,6 +427,77 @@ export const api = {
       patch<{ ok: boolean }>(`/api/activities/comments/${commentId}/hide`),
   },
 
+  // Posts (POST/MEDICAL/RESOURCE sections — LLM-moderated)
+  posts: {
+    list: (params?: {
+      section?: "POST" | "MEDICAL" | "RESOURCE";
+      hospital?: string;
+      doctor?: string;
+      city?: string;
+      q?: string;
+      page?: number;
+    }) => {
+      const qs = new URLSearchParams(
+        Object.entries(params ?? {})
+          .filter(([, v]) => v !== undefined && v !== "")
+          .map(([k, v]) => [k, String(v)]),
+      ).toString();
+      return get<{ posts: Post[] }>(`/api/posts${qs ? `?${qs}` : ""}`);
+    },
+
+    get: (id: string) => get<{ post: Post }>(`/api/posts/${id}`),
+
+    create: (data: {
+      section: "POST" | "MEDICAL" | "RESOURCE";
+      title: string;
+      body: string;
+      tags?: string[];
+      hospital?: string;
+      doctor?: string;
+      city?: string;
+      resourceKind?: "OFFER" | "REQUEST";
+      coverUrl?: string;
+      visibility?: string;
+    }) =>
+      post<{ ok: boolean; id: string; status: string; moderation: ModerationDecision }>(
+        "/api/posts",
+        data,
+      ),
+
+    update: (
+      id: string,
+      data: Partial<{
+        title: string;
+        body: string;
+        tags: string[];
+        hospital: string | null;
+        doctor: string | null;
+        city: string | null;
+        resourceKind: "OFFER" | "REQUEST" | null;
+        coverUrl: string | null;
+        visibility: string;
+      }>,
+    ) =>
+      patch<{ ok: boolean; status: string; moderation: ModerationDecision }>(
+        `/api/posts/${id}`,
+        data,
+      ),
+
+    remove: (id: string) => del<{ ok: boolean }>(`/api/posts/${id}`),
+
+    listComments: (id: string) =>
+      get<{ comments: Comment[] }>(`/api/posts/${id}/comments`),
+
+    postComment: (id: string, body: string, parentId?: string) =>
+      post<{ ok: boolean; id: string; hidden: boolean; moderation: ModerationDecision }>(
+        `/api/posts/${id}/comments`,
+        { body, parentId },
+      ),
+
+    hideComment: (cid: string) =>
+      patch<{ ok: boolean }>(`/api/posts/comments/${cid}/hide`),
+  },
+
   // Users
   users: {
     getProfile: (handle: string) => get<UserProfile>(`/api/users/${handle}`),
@@ -539,6 +651,12 @@ export const api = {
 
     setUserEmail: (userId: string, email: string) =>
       patch<{ ok: boolean }>(`/api/admin/users/${userId}/email`, { email }),
+
+    // Posts moderation queue
+    listPendingPosts: () => get<{ posts: Post[] }>(`/api/posts/admin/pending`),
+
+    reviewPost: (id: string, decision: "APPROVE" | "REJECT" | "HIDE", note?: string) =>
+      patch<{ ok: boolean; status: string }>(`/api/posts/${id}/review`, { decision, note }),
   },
 
   // Files

@@ -224,6 +224,16 @@ model Event {
   // EventStatus: DRAFT | PUBLISHED | CANCELLED | FINISHED
   status          String        @default("PUBLISHED")
 
+  // LLM moderation outcome (migration 0005)
+  moderationVerdict     String?
+  moderationReason      String?
+  moderationCategories  String?
+  moderationRaw         String?
+  moderationClassifier  String?
+  moderatedAt           DateTime?
+  reviewedById          String?
+  reviewedAt            DateTime?
+
   registrations   Registration[]
   comments        Comment[]
 
@@ -234,6 +244,51 @@ model Event {
   @@index([startAt])
   @@index([category])
   @@index([visibility, status])
+}
+
+// ============================================================
+// 帖子（POST 普通 / MEDICAL 医疗信息 / RESOURCE 资源分享）
+// 与活动并列的发帖系统，由 LLM 自动审核 + 板块分类。
+// ============================================================
+
+model Post {
+  id              String   @id @default(cuid())
+  authorId        String
+  // PostSection: POST | MEDICAL | RESOURCE
+  section         String
+  title           String
+  body            String
+  // JSON array (free-form tags)
+  tags            String   @default("[]")
+  // MEDICAL-specific
+  hospital        String?
+  doctor          String?
+  city            String?
+  // RESOURCE-specific: OFFER (technique on offer) | REQUEST (asking for help)
+  resourceKind    String?
+  coverUrl        String?
+
+  // Visibility: PUBLIC | VERIFIED | TRUSTED
+  visibility      String   @default("VERIFIED")
+  // PostStatus: PENDING_REVIEW | PUBLISHED | REJECTED | HIDDEN
+  status          String   @default("PENDING_REVIEW")
+
+  moderationVerdict     String?
+  moderationReason      String?
+  moderationCategories  String?
+  moderationRaw         String?
+  moderationClassifier  String?
+  moderatedAt           DateTime?
+  reviewedById          String?
+  reviewedAt            DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([section, status])
+  @@index([authorId])
+  @@index([hospital])
+  @@index([createdAt])
 }
 
 model Registration {
@@ -260,8 +315,12 @@ model Registration {
 
 model Comment {
   id         String   @id @default(cuid())
-  eventId    String
-  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  // Polymorphic: exactly one of eventId or postId is set.
+  // Schema kept nullable so Prisma can model both targets;
+  // application code enforces XOR.
+  eventId    String?
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  postId     String?
   authorId   String
   author     User     @relation(fields: [authorId], references: [id])
   body       String
@@ -273,6 +332,7 @@ model Comment {
   createdAt  DateTime @default(now())
 
   @@index([eventId])
+  @@index([postId])
   @@index([authorId])
 }
 

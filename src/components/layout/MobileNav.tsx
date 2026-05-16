@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Home, User, Bell } from "lucide-react";
+import { Calendar, Home, User, Bell, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toQueryRoute } from "@/lib/query-routing";
 
@@ -11,6 +11,7 @@ export function MobileNav({ signedIn }: { signedIn: boolean }) {
 
   const items = [
     { href: toQueryRoute("/events"), label: "活动", icon: Calendar, match: /^\/events/ },
+    { href: toQueryRoute("/posts"), label: "广场", icon: Sparkles, match: /^\/posts/ },
     { href: toQueryRoute("/me"), label: "我", icon: Home, match: /^\/me$/ },
     { href: toQueryRoute("/notifications"), label: "通知", icon: Bell, match: /^\/notifications/ },
     { href: toQueryRoute("/me/profile"), label: "主页", icon: User, match: /^\/me\/profile/ },
@@ -18,7 +19,7 @@ export function MobileNav({ signedIn }: { signedIn: boolean }) {
 
   return (
     <nav className="md:hidden fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg-warm/95 backdrop-blur-md">
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {items.map((it) => {
           const active = it.match.test(pathname ?? "");
           const Icon = it.icon;

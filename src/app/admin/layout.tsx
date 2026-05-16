@@ -27,6 +27,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             管理后台
           </div>
           <Link href={toQueryRoute("/admin/applications")} className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">申请审核</Link>
+          <Link href={toQueryRoute("/admin/posts")} className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">帖子复核</Link>
           <Link href={toQueryRoute("/admin/reports")} className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">举报队列</Link>
           <Link href={toQueryRoute("/admin/users")} className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">用户管理</Link>
           <Link href={toQueryRoute("/admin/audit")} className="block rounded-md px-3 py-2 text-ink-muted hover:bg-bg-muted hover:text-ink">操作日志</Link>

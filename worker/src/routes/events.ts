@@ -14,6 +14,8 @@ import {
 } from "@/lib/access";
 import { newId, slugify, randomCode } from "@/lib/utils";
 import { sendRegistrationStatusEmail } from "@/email/sender";
+import { containsBlockedTerms } from "@/lib/keywords";
+import { moderateAndClassify } from "@/lib/llm";
 
 const events = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -141,10 +143,10 @@ events.get("/:slug", optionalAuth, async (c) => {
   return c.json({ event: result });
 });
 
-// POST /api/activities
-events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
+// POST /api/activities — requires TRUSTED tier and passes LLM moderation
+events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
   const viewer = viewerFrom(c)!;
-  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建" }, 403);
+  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 TRUSTED 及以上权限" }, 403);
 
   const body = await c.req.json<{
     title: string;
@@ -170,6 +172,30 @@ events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     return c.json({ error: "缺少必填字段" }, 400);
   }
 
+  if (containsBlockedTerms(`${body.title}\n${body.description}`)) {
+    return c.json({ error: "内容包含被屏蔽的词汇" }, 400);
+  }
+
+  const decision = await moderateAndClassify(c.env, {
+    kind: "EVENT",
+    title: body.title,
+    body: body.description,
+    hintSection: "EVENT",
+    authorTier: viewer.tier,
+  });
+  if (decision.verdict === "reject") {
+    return c.json({ error: decision.reason || "内容不符合社区规范", moderation: decision }, 400);
+  }
+  if (decision.section !== "EVENT") {
+    return c.json({
+      error: "内容更像是普通帖子/医疗信息/资源分享，请前往「广场」对应板块发布",
+      reason: decision.reason,
+      moderation: decision,
+    }, 400);
+  }
+
+  const status = decision.verdict === "flag" ? "DRAFT" : "PUBLISHED";
+
   const slug = await uniqueSlug(c.env.DB, body.title);
   const id = newId();
 
@@ -177,8 +203,10 @@ events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     `INSERT INTO events (id, organizer_id, title, slug, category, format, description,
        cover_url, start_at, end_at, timezone, city, precise_addr, online_url,
        capacity, require_approval, registration_opens_at, registration_closes_at,
-       custom_questions, visibility, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED')`,
+       custom_questions, visibility, status,
+       moderation_verdict, moderation_reason, moderation_categories, moderation_raw,
+       moderation_classifier, moderated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
   )
     .bind(
       id,
@@ -201,10 +229,16 @@ events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
       body.registrationClosesAt ?? null,
       body.customQuestions ? JSON.stringify(body.customQuestions) : null,
       body.visibility ?? "VERIFIED",
+      status,
+      decision.verdict,
+      decision.reason,
+      JSON.stringify(decision.categories),
+      decision.raw,
+      decision.classifier,
     )
     .run();
 
-  return c.json({ ok: true, slug });
+  return c.json({ ok: true, slug, status, moderation: decision });
 });
 
 // PATCH /api/activities/:id
@@ -227,6 +261,45 @@ events.patch("/:id", requireAuth, async (c) => {
     customQuestions: unknown[]; visibility: string;
   }>>();
 
+  // Re-run moderation if the user edited title or description.
+  const nextTitle = body.title ?? event.title;
+  const nextDescription = body.description ?? event.description;
+  const contentChanged = body.title !== undefined || body.description !== undefined;
+  let modVerdict: string | null = event.moderation_verdict;
+  let modReason: string | null = event.moderation_reason;
+  let modCategories: string | null = event.moderation_categories;
+  let modRaw: string | null = event.moderation_raw;
+  let modClassifier: string | null = event.moderation_classifier;
+  let modeRanAt: string | null = event.moderated_at;
+
+  if (contentChanged) {
+    if (containsBlockedTerms(`${nextTitle}\n${nextDescription}`)) {
+      return c.json({ error: "内容包含被屏蔽的词汇" }, 400);
+    }
+    const decision = await moderateAndClassify(c.env, {
+      kind: "EVENT",
+      title: nextTitle,
+      body: nextDescription,
+      hintSection: "EVENT",
+      authorTier: viewer.tier,
+    });
+    if (decision.verdict === "reject") {
+      return c.json({ error: decision.reason || "内容不符合社区规范", moderation: decision }, 400);
+    }
+    if (decision.section !== "EVENT") {
+      return c.json({
+        error: "修改后的内容不再像活动，请改为帖子发布",
+        moderation: decision,
+      }, 400);
+    }
+    modVerdict = decision.verdict;
+    modReason = decision.reason;
+    modCategories = JSON.stringify(decision.categories);
+    modRaw = decision.raw;
+    modClassifier = decision.classifier;
+    modeRanAt = new Date().toISOString();
+  }
+
   await c.env.DB.prepare(
     `UPDATE events SET
        title = COALESCE(?, title),
@@ -246,6 +319,12 @@ events.patch("/:id", requireAuth, async (c) => {
        registration_closes_at = ?,
        custom_questions = ?,
        visibility = COALESCE(?, visibility),
+       moderation_verdict = ?,
+       moderation_reason = ?,
+       moderation_categories = ?,
+       moderation_raw = ?,
+       moderation_classifier = ?,
+       moderated_at = ?,
        updated_at = datetime('now')
      WHERE id = ?`,
   )
@@ -267,6 +346,12 @@ events.patch("/:id", requireAuth, async (c) => {
       body.registrationClosesAt ?? null,
       body.customQuestions ? JSON.stringify(body.customQuestions) : null,
       body.visibility ?? null,
+      modVerdict,
+      modReason,
+      modCategories,
+      modRaw,
+      modClassifier,
+      modeRanAt,
       id,
     )
     .run();
@@ -506,7 +591,7 @@ events.get("/:id/comments", optionalAuth, async (c) => {
   return c.json({ comments: rows.results });
 });
 
-// POST /api/activities/:id/comments
+// POST /api/activities/:id/comments — LLM-moderated
 events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
@@ -519,15 +604,30 @@ events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => 
   if (!event) return c.json({ error: "活动不存在" }, 404);
 
   const body = await c.req.json<{ body: string; parentId?: string }>();
-  if (!body.body?.trim()) return c.json({ error: "评论内容不能为空" }, 400);
+  const text = (body.body ?? "").trim();
+  if (!text) return c.json({ error: "评论内容不能为空" }, 400);
+  if (text.length > 4000) return c.json({ error: "评论过长" }, 400);
+
+  if (containsBlockedTerms(text)) {
+    return c.json({ error: "评论包含被屏蔽的词汇" }, 400);
+  }
+  const decision = await moderateAndClassify(c.env, {
+    kind: "COMMENT",
+    body: text,
+    authorTier: viewer.tier,
+  });
+  if (decision.verdict === "reject") {
+    return c.json({ error: decision.reason || "评论不符合社区规范", moderation: decision }, 400);
+  }
+  const hidden = decision.verdict === "flag" ? 1 : 0;
 
   await c.env.DB.prepare(
-    "INSERT INTO comments (id, event_id, author_id, body, parent_id) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO comments (id, event_id, post_id, author_id, body, parent_id, is_hidden, hidden_reason) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)",
   )
-    .bind(newId(), id, viewer.id, body.body.trim(), body.parentId ?? null)
+    .bind(newId(), id, viewer.id, text, body.parentId ?? null, hidden, hidden ? decision.reason : null)
     .run();
 
-  return c.json({ ok: true });
+  return c.json({ ok: true, hidden: !!hidden, moderation: decision });
 });
 
 // PATCH /api/comments/:commentId/hide
