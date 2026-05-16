@@ -13,7 +13,7 @@ import {
   canViewEventDetails,
 } from "@/lib/access";
 import { newId, slugify, randomCode } from "@/lib/utils";
-import { sendRegistrationStatusEmail } from "@/email/sender";
+import { sendRegistrationStatusEmail, sendModerationStatusEmail } from "@/email/sender";
 import { containsBlockedTerms } from "@/lib/keywords";
 import { moderateAndClassify } from "@/lib/llm";
 
@@ -172,32 +172,47 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
     return c.json({ error: "缺少必填字段" }, 400);
   }
 
-  if (containsBlockedTerms(`${body.title}\n${body.description}`)) {
-    return c.json({ error: "内容包含被屏蔽的词汇" }, 400);
-  }
-
-  const decision = await moderateAndClassify(c.env, {
-    kind: "EVENT",
-    title: body.title,
-    body: body.description,
-    hintSection: "EVENT",
-    authorTier: viewer.tier,
-  });
-  if (decision.verdict === "reject") {
-    return c.json({ error: decision.reason || "内容不符合社区规范", moderation: decision }, 400);
-  }
-  if (decision.section !== "EVENT") {
-    return c.json({
-      error: "内容更像是普通帖子/医疗信息/资源分享，请前往「广场」对应板块发布",
-      reason: decision.reason,
-      moderation: decision,
-    }, 400);
-  }
-
-  const status = decision.verdict === "flag" ? "DRAFT" : "PUBLISHED";
-
   const slug = await uniqueSlug(c.env.DB, body.title);
   const id = newId();
+
+  // Look up author email up-front for moderation notifications.
+  const organizerRow = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
+    .bind(viewer.id)
+    .first<{ email: string }>();
+  const organizerEmail = organizerRow?.email ?? null;
+
+  // Run moderation. Even on reject we still INSERT the event in REJECTED state
+  // so the author can see it on their own page; the public list filters it out.
+  let verdict: "pass" | "flag" | "reject" = "pass";
+  let reason = "";
+  let categoriesJson = "[]";
+  let raw = "";
+  let classifier: "LLM" | "FALLBACK" | "KEYWORD" = "LLM";
+
+  if (containsBlockedTerms(`${body.title}\n${body.description}`)) {
+    verdict = "reject";
+    reason = "命中关键词过滤,请修改内容后重新发布。";
+    classifier = "KEYWORD";
+  } else {
+    const decision = await moderateAndClassify(c.env, {
+      kind: "EVENT",
+      title: body.title,
+      body: body.description,
+      authorTier: viewer.tier,
+    });
+    verdict = decision.verdict;
+    reason = decision.reason;
+    categoriesJson = JSON.stringify(decision.categories);
+    raw = decision.raw;
+    classifier = decision.classifier;
+    if (decision.section !== "EVENT") {
+      verdict = "reject";
+      reason = decision.reason || "内容看起来更像帖子,请改发到「广场」对应板块。";
+    }
+  }
+
+  const status =
+    verdict === "reject" ? "CANCELLED" : verdict === "flag" ? "DRAFT" : "PUBLISHED";
 
   await c.env.DB.prepare(
     `INSERT INTO events (id, organizer_id, title, slug, category, format, description,
@@ -230,15 +245,50 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
       body.customQuestions ? JSON.stringify(body.customQuestions) : null,
       body.visibility ?? "VERIFIED",
       status,
-      decision.verdict,
-      decision.reason,
-      JSON.stringify(decision.categories),
-      decision.raw,
-      decision.classifier,
+      verdict,
+      reason,
+      categoriesJson,
+      raw,
+      classifier,
     )
     .run();
 
-  return c.json({ ok: true, slug, status, moderation: decision });
+  // Notify the organizer about the outcome (in-app always; email for flag/reject).
+  const kind =
+    status === "PUBLISHED"
+      ? "EVENT_APPROVED"
+      : status === "DRAFT"
+        ? "EVENT_PENDING_REVIEW"
+        : "EVENT_REJECTED";
+  await c.env.DB.prepare(
+    "INSERT INTO notifications (id, user_id, kind, payload) VALUES (?, ?, ?, ?)",
+  )
+    .bind(
+      newId(),
+      viewer.id,
+      kind,
+      JSON.stringify({ eventSlug: slug, title: body.title, reason, status }),
+    )
+    .run();
+  if ((status === "DRAFT" || status === "CANCELLED") && organizerEmail) {
+    try {
+      await sendModerationStatusEmail(
+        { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+        {
+          to: organizerEmail,
+          title: body.title,
+          url: `${c.env.FRONTEND_URL}/events/${slug}`,
+          status: status === "DRAFT" ? "PENDING_REVIEW" : "REJECTED",
+          targetKind: "EVENT",
+          reason,
+        },
+      );
+    } catch (err) {
+      console.error("event moderation email failed:", err);
+    }
+  }
+
+  return c.json({ ok: true, slug, status });
 });
 
 // PATCH /api/activities/:id
@@ -280,16 +330,14 @@ events.patch("/:id", requireAuth, async (c) => {
       kind: "EVENT",
       title: nextTitle,
       body: nextDescription,
-      hintSection: "EVENT",
       authorTier: viewer.tier,
     });
     if (decision.verdict === "reject") {
-      return c.json({ error: decision.reason || "内容不符合社区规范", moderation: decision }, 400);
+      return c.json({ error: decision.reason || "内容不符合社区规范" }, 400);
     }
     if (decision.section !== "EVENT") {
       return c.json({
-        error: "修改后的内容不再像活动，请改为帖子发布",
-        moderation: decision,
+        error: "修改后的内容不再像活动,请改为帖子发布",
       }, 400);
     }
     modVerdict = decision.verdict;
@@ -617,17 +665,17 @@ events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => 
     authorTier: viewer.tier,
   });
   if (decision.verdict === "reject") {
-    return c.json({ error: decision.reason || "评论不符合社区规范", moderation: decision }, 400);
+    return c.json({ error: decision.reason || "评论不符合社区规范" }, 400);
   }
   const hidden = decision.verdict === "flag" ? 1 : 0;
 
   await c.env.DB.prepare(
-    "INSERT INTO comments (id, event_id, post_id, author_id, body, parent_id, is_hidden, hidden_reason) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)",
+    "INSERT INTO comments (id, event_id, post_id, author_id, body, parent_id, is_hidden, hidden_reason, is_bot) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0)",
   )
     .bind(newId(), id, viewer.id, text, body.parentId ?? null, hidden, hidden ? decision.reason : null)
     .run();
 
-  return c.json({ ok: true, hidden: !!hidden, moderation: decision });
+  return c.json({ ok: true, hidden: !!hidden });
 });
 
 // PATCH /api/comments/:commentId/hide

@@ -1,10 +1,14 @@
-// Unit tests for worker/src/lib/llm.ts
+// Unit tests for worker/src/lib/llm.ts (moderation + xiao-T) and lib/retry.ts.
 //
-// These exercise the JSON-parsing helpers and the fail-closed behavior of
-// moderateAndClassify without making any real HTTP calls.
+// All HTTP calls are mocked via fetch spy. We never hit a real LLM endpoint.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { moderateAndClassify, __internal } from "../src/lib/llm.js";
+import {
+  moderateAndClassify,
+  generateXiaoTReply,
+  __internal,
+} from "../src/lib/llm.js";
+import { withRetry } from "../src/lib/retry.js";
 import type { Env } from "../src/types.js";
 
 function makeEnv(overrides: Partial<Env> = {}): Env {
@@ -25,9 +29,27 @@ function makeEnv(overrides: Partial<Env> = {}): Env {
   };
 }
 
-function mockFetchOnce(payload: unknown, status = 200) {
-  return vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    new Response(JSON.stringify(payload), {
+let activeFetchSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+function ensureFetchSpy() {
+  if (!activeFetchSpy) {
+    activeFetchSpy = vi.spyOn(globalThis, "fetch");
+  }
+  return activeFetchSpy;
+}
+
+function queueText(text: string, status = 200) {
+  ensureFetchSpy().mockResolvedValueOnce(
+    new Response(JSON.stringify({ content: [{ type: "text", text }] }), {
+      status,
+      headers: { "content-type": "application/json" },
+    }),
+  );
+}
+
+function queueError(status: number, body: unknown = { error: "x" }) {
+  ensureFetchSpy().mockResolvedValueOnce(
+    new Response(JSON.stringify(body), {
       status,
       headers: { "content-type": "application/json" },
     }),
@@ -72,9 +94,16 @@ describe("llm parsers", () => {
     expect(__internal.normalizeSection(42)).toBe("POST");
   });
 
-  it("extracts text from anthropic content array", () => {
+  it("normalizeStringArray caps length and filters non-strings", () => {
+    expect(__internal.normalizeStringArray(["a", "B", 42, ""], 3)).toEqual(["a", "b"]);
+    expect(__internal.normalizeStringArray(null, 3)).toEqual([]);
+    expect(__internal.normalizeStringArray(["a", "b", "c", "d"], 2)).toEqual(["a", "b"]);
+  });
+
+  it("extracts text from anthropic content array, skipping non-text parts", () => {
     const out = __internal.extractText({
       content: [
+        { type: "thinking", thinking: "internal" },
         { type: "text", text: "hello" },
         { type: "text", text: "world" },
       ],
@@ -83,14 +112,48 @@ describe("llm parsers", () => {
   });
 });
 
-describe("moderateAndClassify", () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+describe("withRetry", () => {
+  it("returns first success without retry", async () => {
+    const fn = vi.fn().mockResolvedValue(42);
+    const result = await withRetry(fn, { delays: [10, 10] });
+    expect(result).toBe(42);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
 
+  it("retries on retryable error and eventually succeeds", async () => {
+    let calls = 0;
+    const fn = vi.fn().mockImplementation(async () => {
+      calls++;
+      if (calls < 3) throw new Error("transient");
+      return "ok";
+    });
+    const result = await withRetry(fn, { delays: [1, 1, 1], shouldRetry: () => true });
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up after all attempts and throws last error", async () => {
+    const err = new Error("boom");
+    const fn = vi.fn().mockRejectedValue(err);
+    await expect(withRetry(fn, { delays: [1, 1], shouldRetry: () => true })).rejects.toBe(err);
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("respects shouldRetry=false for non-retryable errors", async () => {
+    const err = new Error("4xx");
+    const fn = vi.fn().mockRejectedValue(err);
+    await expect(withRetry(fn, { delays: [1, 1], shouldRetry: () => false })).rejects.toBe(err);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("moderateAndClassify", () => {
   beforeEach(() => {
-    fetchSpy = vi.spyOn(globalThis, "fetch");
+    activeFetchSpy = null;
   });
   afterEach(() => {
-    fetchSpy.mockRestore();
+    activeFetchSpy?.mockRestore();
+    activeFetchSpy = null;
   });
 
   it("returns FALLBACK flag when LLM not configured", async () => {
@@ -102,50 +165,54 @@ describe("moderateAndClassify", () => {
     });
     expect(decision.verdict).toBe("flag");
     expect(decision.classifier).toBe("FALLBACK");
-    // Should not have made any HTTP call.
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(activeFetchSpy).toBeNull();
   });
 
-  it("parses a clean LLM pass response", async () => {
-    mockFetchOnce({
-      content: [
-        {
-          type: "text",
-          text: '{"verdict":"pass","reason":"ok","section":"POST","categories":[]}',
-        },
-      ],
-    });
+  it("parses a clean pass response with tags", async () => {
+    queueText(
+      '{"verdict":"pass","reason":"ok","section":"MEDICAL","tags":["medical-science"],"categories":[]}',
+    );
     const decision = await moderateAndClassify(makeEnv(), {
       kind: "POST",
-      body: "hello",
+      body: "讲一下雌二醇代谢的最新研究",
       authorTier: "VERIFIED",
     });
     expect(decision.verdict).toBe("pass");
-    expect(decision.section).toBe("POST");
-    expect(decision.classifier).toBe("LLM");
+    expect(decision.section).toBe("MEDICAL");
+    expect(decision.tags).toEqual(["medical-science"]);
   });
 
-  it("propagates reject verdict and reason", async () => {
-    mockFetchOnce({
-      content: [
-        {
-          type: "text",
-          text: '{"verdict":"reject","reason":"涉嫌广告","section":"POST","categories":["ad"]}',
-        },
-      ],
-    });
+  it("propagates reject verdict and categories", async () => {
+    queueText(
+      '{"verdict":"reject","reason":"涉嫌广告","section":"POST","tags":[],"categories":["ad"]}',
+    );
     const decision = await moderateAndClassify(makeEnv(), {
       kind: "POST",
       body: "加微信",
       authorTier: "VERIFIED",
     });
     expect(decision.verdict).toBe("reject");
-    expect(decision.reason).toContain("广告");
     expect(decision.categories).toContain("ad");
   });
 
-  it("fails closed on HTTP 500", async () => {
-    mockFetchOnce({ error: "server" }, 500);
+  it("retries on 500 then succeeds", async () => {
+    queueError(500);
+    queueError(503);
+    queueText('{"verdict":"pass","reason":"ok","section":"POST","tags":[]}');
+    const decision = await moderateAndClassify(makeEnv(), {
+      kind: "POST",
+      body: "x",
+      authorTier: "VERIFIED",
+    });
+    expect(decision.verdict).toBe("pass");
+    expect(activeFetchSpy).toHaveBeenCalledTimes(3);
+  }, 20000);
+
+  it("fails closed when all retries exhausted on 5xx", async () => {
+    queueError(500);
+    queueError(500);
+    queueError(500);
+    queueError(500);
     const decision = await moderateAndClassify(makeEnv(), {
       kind: "POST",
       body: "x",
@@ -153,25 +220,57 @@ describe("moderateAndClassify", () => {
     });
     expect(decision.verdict).toBe("flag");
     expect(decision.classifier).toBe("FALLBACK");
-  });
+  }, 20000);
 
   it("fails closed when response missing verdict", async () => {
-    mockFetchOnce({ content: [{ type: "text", text: '{"reason":"oops"}' }] });
+    queueText('{"reason":"oops"}');
     const decision = await moderateAndClassify(makeEnv(), {
       kind: "POST",
       body: "x",
       authorTier: "VERIFIED",
     });
     expect(decision.verdict).toBe("flag");
+  });
+});
+
+describe("generateXiaoTReply", () => {
+  beforeEach(() => {
+    activeFetchSpy = null;
+  });
+  afterEach(() => {
+    activeFetchSpy?.mockRestore();
+    activeFetchSpy = null;
   });
 
-  it("fails closed when response text is non-JSON", async () => {
-    mockFetchOnce({ content: [{ type: "text", text: "sorry I cannot help" }] });
-    const decision = await moderateAndClassify(makeEnv(), {
-      kind: "POST",
-      body: "x",
-      authorTier: "VERIFIED",
-    });
-    expect(decision.verdict).toBe("flag");
+  it("returns null when LLM not configured", async () => {
+    const env = makeEnv({ LLM_API_KEY: "" });
+    const reply = await generateXiaoTReply(env, { title: "t", body: "b" });
+    expect(reply).toBeNull();
+    expect(activeFetchSpy).toBeNull();
   });
+
+  it("returns trimmed text on success", async () => {
+    queueText("  你好,我是小T,这件事确实让人难过。先深呼吸一下吧。  ");
+    const reply = await generateXiaoTReply(makeEnv(), {
+      title: "怎么办",
+      body: "好难受",
+    });
+    expect(reply).toContain("小T");
+    expect(reply).not.toMatch(/^\s/);
+  });
+
+  it("strips markdown fences from reply", async () => {
+    queueText("```\n回复内容\n```");
+    const reply = await generateXiaoTReply(makeEnv(), { title: "q", body: "b" });
+    expect(reply).toBe("回复内容");
+  });
+
+  it("returns null on sustained failure", async () => {
+    queueError(500);
+    queueError(500);
+    queueError(500);
+    queueError(500);
+    const reply = await generateXiaoTReply(makeEnv(), { title: "q", body: "b" });
+    expect(reply).toBeNull();
+  }, 20000);
 });

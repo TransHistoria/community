@@ -16,6 +16,7 @@ import {
   contactRequestEmailHtml,
   welcomeEmailHtml,
   passwordResetEmailHtml,
+  moderationStatusEmailHtml,
 } from "@/email/templates";
 
 type RegStatus = "CONFIRMED" | "WAITLIST" | "DECLINED" | "PENDING";
@@ -253,4 +254,30 @@ export async function sendPasswordResetEmail(
     newPassword: args.newPassword,
   });
   await send(p.sendEmail, p.from, args.to, `${p.appName} 密码已重置`, html, text);
+}
+
+export async function sendModerationStatusEmail(
+  p: SendParams,
+  args: {
+    to: string;
+    title: string;
+    url: string;
+    status: "PENDING_REVIEW" | "REJECTED";
+    targetKind: "POST" | "EVENT";
+    reason?: string;
+  },
+): Promise<void> {
+  const { html, text } = moderationStatusEmailHtml({
+    appName: p.appName,
+    title: args.title,
+    url: args.url,
+    status: args.status,
+    targetKind: args.targetKind,
+    reason: args.reason,
+  });
+  const subject =
+    args.status === "REJECTED"
+      ? `「${args.title}」未能通过社群审核`
+      : `「${args.title}」已转人工复核`;
+  await send(p.sendEmail, p.from, args.to, subject, html, text);
 }

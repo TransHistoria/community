@@ -12,14 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CommentSection } from "@/components/post/CommentSection";
 import { useToast } from "@/components/ui/toast-context";
-import {
-  POST_SECTION_LABEL,
-  POST_STATUS_LABEL,
-  RESOURCE_KIND_LABEL,
-  type PostSection,
-  type PostStatus,
-  type ResourceKind,
-} from "@/lib/enums";
+import { TAG_LABEL, parsePostTags } from "@/lib/post-tags";
 import { relativeTime } from "@/lib/utils";
 import { toQueryRoute } from "@/lib/query-routing";
 
@@ -54,6 +47,7 @@ function PostDetailInner() {
   const pending = post.status === "PENDING_REVIEW";
   const rejected = post.status === "REJECTED";
   const hidden = post.status === "HIDDEN";
+  const tags = parsePostTags(post.tags);
 
   async function remove() {
     if (!id) return;
@@ -84,9 +78,13 @@ function PostDetailInner() {
           <CardContent className="pt-6 text-sm bg-amber-50 text-amber-900">
             <p>
               <strong>等待人工复核</strong>
-              {" — "}AI 标记此内容需要管理员确认。当前仅你本人和管理员可见。
+              {" — "}内容暂时仅你和管理员可见。具体进度可在<Link
+                href={toQueryRoute("/notifications")}
+                className="underline ml-1"
+              >
+                通知页面
+              </Link>查看。
             </p>
-            {post.moderation_reason ? <p className="mt-1 text-xs">原因:{post.moderation_reason}</p> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -95,7 +93,11 @@ function PostDetailInner() {
         <Card>
           <CardContent className="pt-6 text-sm bg-rose-50 text-rose-900">
             <p>
-              <strong>已被拒绝</strong>{post.moderation_reason ? ` — ${post.moderation_reason}` : ""}
+              <strong>未通过审核</strong>。{" "}
+              <Link href={toQueryRoute("/notifications")} className="underline">
+                查看通知详情
+              </Link>
+              。
             </p>
           </CardContent>
         </Card>
@@ -111,17 +113,17 @@ function PostDetailInner() {
 
       <article className="space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge variant="pink">{POST_SECTION_LABEL[post.section as PostSection]}</Badge>
-          {post.section === "RESOURCE" && post.resource_kind ? (
-            <Badge variant="outline">
-              {RESOURCE_KIND_LABEL[post.resource_kind as ResourceKind]}
-            </Badge>
-          ) : null}
+          {tags.length > 0 ? (
+            tags.map((t) => (
+              <Badge key={t} variant="pink">
+                {TAG_LABEL[t] ?? t}
+              </Badge>
+            ))
+          ) : (
+            <Badge variant="outline">动态</Badge>
+          )}
           {post.section === "MEDICAL" && post.hospital ? (
             <Badge variant="outline">{post.hospital}</Badge>
-          ) : null}
-          {post.status !== "PUBLISHED" ? (
-            <Badge variant="warn">{POST_STATUS_LABEL[post.status as PostStatus]}</Badge>
           ) : null}
         </div>
         <h1 className="font-serif text-display tracking-tight">{post.title}</h1>
@@ -157,3 +159,4 @@ export default function PostDetailPage() {
     </Suspense>
   );
 }
+

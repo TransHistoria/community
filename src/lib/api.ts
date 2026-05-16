@@ -189,6 +189,7 @@ export interface Comment {
   parent_id: string | null;
   is_hidden: number;
   hidden_reason: string | null;
+  is_bot: number;
   created_at: string;
   author_handle: string;
   author_name: string;
@@ -427,10 +428,12 @@ export const api = {
       patch<{ ok: boolean }>(`/api/activities/comments/${commentId}/hide`),
   },
 
-  // Posts (POST/MEDICAL/RESOURCE sections — LLM-moderated)
+  // Posts — single "广场" feed. Users only supply title/body/visibility;
+  // the backend LLM derives section/tags/moderation and the response
+  // never includes moderation details.
   posts: {
     list: (params?: {
-      section?: "POST" | "MEDICAL" | "RESOURCE";
+      tag?: string;
       hospital?: string;
       doctor?: string;
       city?: string;
@@ -447,41 +450,11 @@ export const api = {
 
     get: (id: string) => get<{ post: Post }>(`/api/posts/${id}`),
 
-    create: (data: {
-      section: "POST" | "MEDICAL" | "RESOURCE";
-      title: string;
-      body: string;
-      tags?: string[];
-      hospital?: string;
-      doctor?: string;
-      city?: string;
-      resourceKind?: "OFFER" | "REQUEST";
-      coverUrl?: string;
-      visibility?: string;
-    }) =>
-      post<{ ok: boolean; id: string; status: string; moderation: ModerationDecision }>(
-        "/api/posts",
-        data,
-      ),
+    create: (data: { title: string; body: string; visibility?: string }) =>
+      post<{ ok: boolean; id: string; status: string }>("/api/posts", data),
 
-    update: (
-      id: string,
-      data: Partial<{
-        title: string;
-        body: string;
-        tags: string[];
-        hospital: string | null;
-        doctor: string | null;
-        city: string | null;
-        resourceKind: "OFFER" | "REQUEST" | null;
-        coverUrl: string | null;
-        visibility: string;
-      }>,
-    ) =>
-      patch<{ ok: boolean; status: string; moderation: ModerationDecision }>(
-        `/api/posts/${id}`,
-        data,
-      ),
+    update: (id: string, data: Partial<{ title: string; body: string; visibility: string }>) =>
+      patch<{ ok: boolean; status: string }>(`/api/posts/${id}`, data),
 
     remove: (id: string) => del<{ ok: boolean }>(`/api/posts/${id}`),
 
@@ -489,10 +462,10 @@ export const api = {
       get<{ comments: Comment[] }>(`/api/posts/${id}/comments`),
 
     postComment: (id: string, body: string, parentId?: string) =>
-      post<{ ok: boolean; id: string; hidden: boolean; moderation: ModerationDecision }>(
-        `/api/posts/${id}/comments`,
-        { body, parentId },
-      ),
+      post<{ ok: boolean; id: string; hidden: boolean }>(`/api/posts/${id}/comments`, {
+        body,
+        parentId,
+      }),
 
     hideComment: (cid: string) =>
       patch<{ ok: boolean }>(`/api/posts/comments/${cid}/hide`),

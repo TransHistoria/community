@@ -1,15 +1,14 @@
-// LLM-backed content moderation + section classification.
+// LLM-backed content moderation + section classification + tag extraction,
+// plus the 小T (xiao_t) auto-reply generator for question/help posts.
 //
-// Calls an Anthropic-compatible /v1/messages endpoint (e.g. Deepseek's
-// https://api.deepseek.com/anthropic). Returns a normalized decision so the
-// posts/events routes can branch on pass/flag/reject without parsing prose.
-//
-// Fail-closed: any error (network/timeout/non-JSON/missing field) returns a
-// `flag` verdict — content is still saved but parked in PENDING_REVIEW so an
-// admin can decide. This keeps the door open when Deepseek is rate-limited
-// without silently letting questionable content through.
+// Both functions call an Anthropic-compatible /v1/messages endpoint (e.g.
+// Deepseek's https://api.deepseek.com/anthropic) with retry on transient
+// errors. They fail closed: any sustained failure of moderateAndClassify
+// returns a `flag` verdict so the post is parked in PENDING_REVIEW for an
+// admin to look at, rather than silently passing or silently dropping.
 
-import type { Env } from "@/types";
+import type { Env } from "../types";
+import { withRetry } from "./retry";
 
 export type ModerationVerdict = "pass" | "flag" | "reject";
 
@@ -17,11 +16,21 @@ export type ModeratableSection = "POST" | "MEDICAL" | "RESOURCE" | "EVENT";
 
 export type ModerationInputKind = "POST" | "COMMENT" | "EVENT";
 
+export type PostTag =
+  | "medical-hospital-review"
+  | "medical-science"
+  | "medical-experience"
+  | "resource-offer"
+  | "resource-request"
+  | "question-help"
+  | "share-life"
+  | "share-resource"
+  | "announcement";
+
 export type ModerationInput = {
   kind: ModerationInputKind;
   title?: string;
   body: string;
-  hintSection?: ModeratableSection;
   authorTier: string;
 };
 
@@ -29,6 +38,7 @@ export type ModerationDecision = {
   verdict: ModerationVerdict;
   reason: string;
   section: ModeratableSection;
+  tags: string[];
   categories: string[];
   classifier: "LLM" | "FALLBACK";
   raw: string;
@@ -36,59 +46,80 @@ export type ModerationDecision = {
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-const SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审核与板块分类助手。
+const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审核与分类助手。
 
-任务：对用户提交的【标题+正文】或【评论】做两件事：
-1) 判定是否违反社区规则（中文社区，写中文）。下列任一即视为违规：
-   - 色情/性暗示露骨内容、约炮/性服务/性交易
-   - 药品（包括激素 HRT、抗抑郁等处方药）的非法买卖、代购、走私
-   - 商业广告、拉客引流、推销课程/微商
-   - 违法违规（涉政煽动、暴力威胁、人肉/开盒、毒品、赌博）
-   - 人身攻击、仇恨言论、对跨性别群体的恶意言论
-2) 判定内容应归属哪个板块（POST 普通动态 / MEDICAL 医疗与医生点评 / RESOURCE 技能/求助 / EVENT 线下或线上集体活动）。
-   - 即便用户提交时选择了某板块，你仍然以内容为准给出真实归属。
-   - 评论(kind=COMMENT)统一返回 section=POST。
+任务（一次性输出 JSON,覆盖以下四件事）:
 
-输出严格 JSON（不要包裹在 markdown 代码块里，不要任何附加文字）：
-{"verdict":"pass|flag|reject","reason":"一句中文,可直接给用户看","section":"POST|MEDICAL|RESOURCE|EVENT","categories":["porn","hookup","drug","ad","illegal","attack",...]}
+1) verdict — 内容是否违规
+   - "reject": 明显违规(色情/约炮、药品/激素非法买卖、广告拉客、违法违规、人身攻击、仇恨言论)
+   - "flag":  存在边界感、需要人工复核(轻微推销、个人色彩强烈的医生评价、隐含求购药物、紧急人身安全求助等)
+   - "pass":  正常合规
 
-判定档位：
-- pass: 内容合规、归属清晰
-- flag: 有边界感、需要人工复核（轻微推销、个人色彩强烈的医生评价、紧急求助等）
-- reject: 明显违规
+2) section — 顶层归属
+   - "EVENT":     是组织线下/线上集体活动的提议或邀请
+   - "MEDICAL":   涉及医疗、HRT、心理、医院、医生、医学知识、学术研究、个人就诊或用药经历
+   - "RESOURCE":  提供或寻求帮助/技能/资源(找室友、求陪伴、能提供翻译等)
+   - "POST":      其他日常分享、心情、提问
 
-注意作者身份等级 authorTier（GUEST/UNVERIFIED/VERIFIED/TRUSTED/ADMIN）：仅 TRUSTED/ADMIN 才有资格发起活动；如果非 TRUSTED+ 内容判定为 EVENT，应当 reject 并提示「活动需要由信任成员发起，请改发到其他板块或联系组织者」。`;
+3) tags — 从下面受控词表选 1~3 个最贴切:
+   - medical-hospital-review (具体医院/医生的就诊或预约体验)
+   - medical-science         (跨性别医疗科普、研究、知识、学术进展)
+   - medical-experience      (作者自己的 HRT/手术/复诊经历分享,不针对具体医生)
+   - resource-offer          (我可以提供的技能/物品/帮助)
+   - resource-request        (我需要的帮助、求人)
+   - question-help           (提问/求建议/不知道怎么办)
+   - share-life              (一般生活、心情、小事分享)
+   - share-resource          (转发外部资源链接、推荐书单/影单)
+   - announcement            (社群通知、活动预告、招募)
 
-function buildUserMessage(input: ModerationInput): string {
+4) categories — verdict 是 reject/flag 时填命中的违规分类标签(porn/hookup/drug/ad/illegal/attack 等)
+
+重要:
+- 即便用户没说自己想发到哪里,你也要给出最合适的 section。
+- 不要因为「没填医院名」就拒绝医疗科普类内容。医疗科普/知识/学术/经验分享都允许 pass。
+- 仅 TRUSTED/ADMIN 等级才有资格发起活动。如果 kind=POST 但内容明显是要发起活动而且 authorTier 不是 TRUSTED/ADMIN,verdict=reject,reason 引导对方改发到非活动板块或联系信任成员组织。
+- 评论(kind=COMMENT)统一返回 section=POST,tags=[]。
+
+返回严格 JSON(不要 markdown 围栏、不要前后多余文字):
+{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...]}`;
+
+const XIAO_T_SYSTEM_PROMPT = `你是「小T」,跨性别社群里的 AI 陪伴员。
+
+你的语气:温柔、共情、不评判、不教训。你不是医生、不是法律顾问、不是治疗师。
+
+收到一条用户发的求助/提问帖。请用 80~180 字的中文给出一段温和的初步回应。规则:
+- 第一句先共情,承认对方此刻的感受或处境
+- 如果合适,可以给 1~2 个具体的小建议或思路(避免「应该」「必须」这种命令式措辞)
+- 涉及医疗/法律/紧急安全时,温和地引导对方去找专业资源(具体医院科室名、可信热线、社群里的相关帖子等),不要替专业人士做判断
+- 自称「小T」。不要说「我是 AI」「我是模型」「我没有情感」。也不要承诺会持续跟进
+- 不要要求对方加微信、加联系方式或转移到私聊
+
+只输出回复文本,不要 JSON、不要前后说明、不要 markdown 标题。`;
+
+function buildModerationUserMessage(input: ModerationInput): string {
   const lines = [
     `kind: ${input.kind}`,
     `authorTier: ${input.authorTier}`,
-    `hintSection: ${input.hintSection ?? "(unspecified)"}`,
   ];
   if (input.title) lines.push(`title: ${input.title.slice(0, 500)}`);
   lines.push(`body: ${input.body.slice(0, 8000)}`);
   return lines.join("\n");
 }
 
-function fallback(reason: string): ModerationDecision {
+function fallbackDecision(reason: string): ModerationDecision {
   return {
     verdict: "flag",
     reason,
     section: "POST",
+    tags: [],
     categories: [],
     classifier: "FALLBACK",
     raw: "",
   };
 }
 
-function parseJsonOutput(text: string): Partial<{
-  verdict: string;
-  reason: string;
-  section: string;
-  categories: unknown;
-}> | null {
+function parseJsonOutput(text: string): Record<string, unknown> | null {
   if (!text) return null;
-  // The model sometimes wraps JSON in ```json fences — strip them.
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -98,7 +129,6 @@ function parseJsonOutput(text: string): Partial<{
     const parsed = JSON.parse(cleaned);
     if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
   } catch {
-    // Try to locate the first {...} block if the model added prose.
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
       try {
@@ -125,96 +155,13 @@ function normalizeSection(value: unknown): ModeratableSection {
   return "POST";
 }
 
-function normalizeCategories(value: unknown): string[] {
+function normalizeStringArray(value: unknown, max: number): string[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((c): c is string => typeof c === "string")
-    .map((c) => c.toLowerCase())
-    .slice(0, 10);
-}
-
-export async function moderateAndClassify(
-  env: Env,
-  input: ModerationInput,
-): Promise<ModerationDecision> {
-  const baseUrl = (env.LLM_BASE_URL ?? "").trim().replace(/\/$/, "");
-  const apiKey = (env.LLM_API_KEY ?? "").trim();
-  const model = (env.LLM_MODEL ?? "").trim();
-
-  if (!baseUrl || !apiKey || !model) {
-    return fallback("LLM 审核未配置，已转人工复核");
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  let res: Response;
-  try {
-    res = await fetch(`${baseUrl}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 400,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: buildUserMessage(input) }],
-      }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    console.error("LLM fetch failed:", err);
-    return fallback("审核服务暂不可用，已转人工复核");
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    console.error(`LLM HTTP ${res.status}: ${errText.slice(0, 500)}`);
-    return fallback(`审核服务返回 ${res.status}，已转人工复核`);
-  }
-
-  let payload: unknown;
-  try {
-    payload = await res.json();
-  } catch {
-    return fallback("审核服务返回内容无法解析，已转人工复核");
-  }
-
-  // Anthropic-style response: { content: [{ type: "text", text: "..." }, ...] }
-  const text = extractText(payload);
-  const raw = typeof payload === "object" ? JSON.stringify(payload) : String(payload);
-
-  if (!text) return fallback("审核服务返回内容为空，已转人工复核");
-
-  const parsed = parseJsonOutput(text);
-  if (!parsed) return { ...fallback("审核结果格式异常，已转人工复核"), raw };
-
-  const verdict = normalizeVerdict(parsed.verdict);
-  if (!verdict) return { ...fallback("审核结果缺少 verdict，已转人工复核"), raw };
-
-  const section = normalizeSection(parsed.section);
-  const reason =
-    typeof parsed.reason === "string" && parsed.reason.trim()
-      ? parsed.reason.trim().slice(0, 500)
-      : verdict === "reject"
-        ? "内容存在违规风险"
-        : verdict === "flag"
-          ? "内容已转人工复核"
-          : "内容符合规范";
-
-  return {
-    verdict,
-    reason,
-    section,
-    categories: normalizeCategories(parsed.categories),
-    classifier: "LLM",
-    raw,
-  };
+    .map((c) => c.toLowerCase().trim())
+    .filter((c) => c.length > 0 && c.length <= 60)
+    .slice(0, max);
 }
 
 function extractText(payload: unknown): string {
@@ -231,17 +178,155 @@ function extractText(payload: unknown): string {
     }
     return chunks.join("\n").trim();
   }
-  // Fallback: some compatible endpoints return a single string field.
   if (typeof obj.text === "string") return obj.text;
   return "";
 }
 
-// ---- Test seam: visible so unit tests can exercise the parser without HTTP. ----
+class HttpStatusError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "HttpStatusError";
+  }
+}
+
+async function callLLM(
+  env: Env,
+  system: string,
+  user: string,
+  maxTokens: number,
+): Promise<{ text: string; raw: string }> {
+  const baseUrl = (env.LLM_BASE_URL ?? "").trim().replace(/\/$/, "");
+  const apiKey = (env.LLM_API_KEY ?? "").trim();
+  const model = (env.LLM_MODEL ?? "").trim();
+  if (!baseUrl || !apiKey || !model) {
+    throw new Error("LLM is not configured");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new HttpStatusError(res.status, `LLM HTTP ${res.status}: ${detail.slice(0, 300)}`);
+  }
+  const payload = await res.json().catch(() => null);
+  const text = extractText(payload);
+  const raw = payload ? JSON.stringify(payload) : "";
+  return { text, raw };
+}
+
+function shouldRetryLlm(err: unknown): boolean {
+  if (err instanceof HttpStatusError) return err.status >= 500;
+  // network/abort/parse failures
+  return true;
+}
+
+export async function moderateAndClassify(
+  env: Env,
+  input: ModerationInput,
+): Promise<ModerationDecision> {
+  if (!(env.LLM_API_KEY ?? "").trim()) {
+    return fallbackDecision("LLM 审核未配置,已转人工复核");
+  }
+
+  let text: string;
+  let raw: string;
+  try {
+    const result = await withRetry(
+      () => callLLM(env, MOD_SYSTEM_PROMPT, buildModerationUserMessage(input), 500),
+      { label: "moderate", shouldRetry: shouldRetryLlm },
+    );
+    text = result.text;
+    raw = result.raw;
+  } catch (err) {
+    console.error("moderateAndClassify failed after retries:", err);
+    return fallbackDecision("审核服务暂不可用,已转人工复核");
+  }
+
+  if (!text) return { ...fallbackDecision("审核服务返回内容为空,已转人工复核"), raw };
+
+  const parsed = parseJsonOutput(text);
+  if (!parsed) return { ...fallbackDecision("审核结果格式异常,已转人工复核"), raw };
+
+  const verdict = normalizeVerdict(parsed.verdict);
+  if (!verdict) return { ...fallbackDecision("审核结果缺少 verdict,已转人工复核"), raw };
+
+  const section = normalizeSection(parsed.section);
+  const tags = normalizeStringArray(parsed.tags, 3);
+  const categories = normalizeStringArray(parsed.categories, 10);
+  const reason =
+    typeof parsed.reason === "string" && parsed.reason.trim()
+      ? parsed.reason.trim().slice(0, 500)
+      : verdict === "reject"
+        ? "内容存在违规风险"
+        : verdict === "flag"
+          ? "内容已转人工复核"
+          : "内容符合规范";
+
+  return {
+    verdict,
+    reason,
+    section,
+    tags,
+    categories,
+    classifier: "LLM",
+    raw,
+  };
+}
+
+export async function generateXiaoTReply(
+  env: Env,
+  post: { title: string; body: string },
+): Promise<string | null> {
+  if (!(env.LLM_API_KEY ?? "").trim()) return null;
+
+  const user = `标题:${post.title.slice(0, 300)}\n正文:${post.body.slice(0, 4000)}`;
+  try {
+    const { text } = await withRetry(
+      () => callLLM(env, XIAO_T_SYSTEM_PROMPT, user, 400),
+      { label: "xiao-t", shouldRetry: shouldRetryLlm },
+    );
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+    // Strip accidental markdown fences if model wrapped reply.
+    return trimmed
+      .replace(/^```[a-zA-Z]*\s*/, "")
+      .replace(/\s*```$/, "")
+      .slice(0, 600);
+  } catch (err) {
+    console.error("generateXiaoTReply failed after retries:", err);
+    return null;
+  }
+}
+
+// ---- Test seam ----
 export const __internal = {
   parseJsonOutput,
   normalizeVerdict,
   normalizeSection,
-  normalizeCategories,
+  normalizeStringArray,
   extractText,
-  fallback,
+  fallbackDecision,
+  shouldRetryLlm,
+  HttpStatusError,
 };

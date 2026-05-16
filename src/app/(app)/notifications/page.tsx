@@ -66,6 +66,60 @@ function notificationText(n: Notification): { title: string; href?: string } {
       return { title: eventTitle ? `有人向你推荐了「${eventTitle}」` : "有人向你推荐了一个活动", href: eventHref };
     case "APP_APPROVED":
       return { title: "你的入站申请已通过，欢迎加入！", href: toQueryRoute("/events") };
+    case "POST_APPROVED": {
+      const postId = strField("postId");
+      const title = strField("title");
+      return {
+        title: title ? `「${title}」已发布` : "你的帖子已发布",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "POST_PENDING_REVIEW": {
+      const postId = strField("postId");
+      const title = strField("title");
+      const reason = strField("reason");
+      return {
+        title: title
+          ? `「${title}」正在等待人工复核${reason ? ` — ${reason}` : ""}`
+          : "你的帖子正在等待人工复核",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "POST_REJECTED": {
+      const postId = strField("postId");
+      const title = strField("title");
+      const reason = strField("reason");
+      return {
+        title: title
+          ? `「${title}」未通过审核${reason ? ` — ${reason}` : ""}`
+          : "你的帖子未通过审核",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "XIAO_T_REPLIED": {
+      const postId = strField("postId");
+      const title = strField("title");
+      return {
+        title: title ? `小T 回复了「${title}」` : "小T 给你的帖子回复了",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "EVENT_APPROVED":
+      return { title: eventTitle ? `「${eventTitle}」已发布` : "活动已发布", href: eventHref };
+    case "EVENT_PENDING_REVIEW":
+      return {
+        title: eventTitle ? `「${eventTitle}」等待复核` : "活动等待复核",
+        href: eventHref,
+      };
+    case "EVENT_REJECTED": {
+      const reason = strField("reason");
+      return {
+        title: eventTitle
+          ? `「${eventTitle}」未通过审核${reason ? ` — ${reason}` : ""}`
+          : "活动未通过审核",
+        href: eventHref,
+      };
+    }
     default:
       return { title: n.kind };
   }

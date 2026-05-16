@@ -12,10 +12,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty";
 import { PostCard } from "@/components/post/PostCard";
-import { POST_SECTION_LABEL, type PostSection } from "@/lib/enums";
+import { TAG_TABS, parsePostTags } from "@/lib/post-tags";
 import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
-
-const SECTIONS: PostSection[] = ["POST", "MEDICAL", "RESOURCE"];
 
 function PostsListInner() {
   const { user } = useAuth();
@@ -23,32 +21,45 @@ function PostsListInner() {
   const queryRoute = React.useMemo(() => getQueryRoute(searchParams), [searchParams]);
   const isLiteralPostsRoute = queryRoute.path === "/posts" || queryRoute.path.startsWith("/posts/");
   const routeParams = isLiteralPostsRoute ? queryRoute.params : searchParams;
-  const section = (routeParams.get("section") as PostSection | null) ?? null;
-  const hospital = routeParams.get("hospital") ?? undefined;
+  const activeTab = routeParams.get("tab") ?? "all";
   const q = routeParams.get("q") ?? undefined;
 
   const [posts, setPosts] = React.useState<Post[]>([]);
   const [loadFailed, setLoadFailed] = React.useState(false);
 
   React.useEffect(() => {
+    const tabConfig = TAG_TABS.find((t) => t.key === activeTab);
+    // For tabs whose tag is a prefix (e.g. "medical-"), fetch a broader set
+    // and filter client-side; for exact-match tabs use the API tag filter.
+    const params: { tag?: string; q?: string } = q ? { q } : {};
+    if (tabConfig?.tag && !tabConfig.tag.endsWith("-")) {
+      params.tag = tabConfig.tag;
+    }
     api.posts
-      .list({ section: section ?? undefined, hospital, q })
+      .list(params)
       .then((res) => {
-        setPosts(res.posts);
+        let list = res.posts;
+        if (tabConfig?.tag && tabConfig.tag.endsWith("-")) {
+          const prefix = tabConfig.tag;
+          list = list.filter((p) =>
+            parsePostTags(p.tags).some((t) => t.startsWith(prefix)),
+          );
+        }
+        setPosts(list);
         setLoadFailed(false);
       })
       .catch(() => {
         setPosts([]);
         setLoadFailed(true);
       });
-  }, [section, hospital, q]);
+  }, [activeTab, q]);
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="广场"
-        title="动态 · 医疗信息 · 资源分享"
-        description="任何认证成员都可以在这里发帖。每条内容会经 AI 审核与人工复核。"
+        title="动态、医疗、资源,都在这里"
+        description="任何认证成员都可以发帖。系统会自动审核和分类,你只需要把话说清楚。"
         actions={
           canCreatePost(user) ? (
             <Button asChild>
@@ -61,19 +72,20 @@ function PostsListInner() {
       />
 
       <div className="flex flex-wrap gap-2">
-        <FilterPill href={toQueryRoute("/posts")} active={!section}>
-          全部
-        </FilterPill>
-        {SECTIONS.map((s) => (
-          <FilterPill key={s} href={toQueryRoute(`/posts?section=${s}`)} active={section === s}>
-            {POST_SECTION_LABEL[s]}
+        {TAG_TABS.map((tab) => (
+          <FilterPill
+            key={tab.key}
+            href={toQueryRoute(tab.key === "all" ? "/posts" : `/posts?tab=${tab.key}`)}
+            active={activeTab === tab.key}
+          >
+            {tab.label}
           </FilterPill>
         ))}
       </div>
 
       {posts.length === 0 ? (
         <EmptyState
-          title={loadFailed ? "加载失败" : "暂无帖子"}
+          title={loadFailed ? "加载失败" : "这里还很安静"}
           description={
             loadFailed
               ? "请检查网络后重试。"
