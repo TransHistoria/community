@@ -87,11 +87,12 @@ function statusForVerdict(verdict: ModerationDecision["verdict"]): string {
   return "REJECTED";
 }
 
-function deriveSectionFromTags(decisionSection: string, tags: string[]): string {
-  // LLM-supplied section is authoritative, but if it's EVENT we shouldn't
-  // persist that on the posts table (only events table uses EVENT). Fall back.
-  if (decisionSection === "EVENT") return "POST";
-  return decisionSection;
+// LLM may return POST/MEDICAL/RESOURCE for the posts table. EVENT is handled
+// separately because activities have a dedicated /api/activities route and a
+// tier gate; we don't silently demote them to posts here.
+function normalizePostSection(decisionSection: string): "POST" | "MEDICAL" | "RESOURCE" {
+  if (decisionSection === "MEDICAL" || decisionSection === "RESOURCE") return decisionSection;
+  return "POST";
 }
 
 async function notifyModerationOutcome(
@@ -314,16 +315,19 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     authorTier: viewer.tier,
   });
 
-  // EVENT-section rejection is non-negotiable on posts table.
+  // Activities are gated separately. If the LLM says this content is really an
+  // EVENT, reject the post and point the author at the activities flow.
+  // (Auto-classification still happens *within* POST/MEDICAL/RESOURCE — LLM
+  // decides which of those three the content belongs to.)
   let finalVerdict = decision.verdict;
   let finalReason = decision.reason;
-  if (decision.section === "EVENT" && rank(viewer.tier) < rank("TRUSTED")) {
+  if (decision.section === "EVENT") {
     finalVerdict = "reject";
-    finalReason =
-      decision.reason ||
-      "你的内容更像是组织活动。社群活动需要由信任成员发起,请改发到其他板块或联系组织者。";
+    finalReason = rank(viewer.tier) >= rank("TRUSTED")
+      ? "内容看起来是要组织活动,请去活动模块发布。"
+      : "内容看起来是要组织活动。社群活动需要由 TRUSTED 及以上成员发起,你可以联系组织者代发。";
   }
-  const section = deriveSectionFromTags(decision.section, decision.tags);
+  const section = normalizePostSection(decision.section);
   const status = statusForVerdict(finalVerdict);
 
   await c.env.DB.prepare(
@@ -362,6 +366,7 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     title,
     reason: finalReason,
     status,
+    section,
   });
   await notifyModerationOutcome(c.env, authorEmail, id, title, status, finalReason);
 
@@ -444,12 +449,11 @@ posts.patch("/:id", requireAuth, async (c) => {
 
   let finalVerdict = decision.verdict;
   let finalReason = decision.reason;
-  if (decision.section === "EVENT" && rank(viewer.tier) < rank("TRUSTED")) {
+  if (decision.section === "EVENT") {
     finalVerdict = "reject";
-    finalReason =
-      decision.reason || "修改后的内容像是要组织活动,请改回普通帖子,或联系信任成员代发。";
+    finalReason = "修改后的内容像是要组织活动,请去活动模块或恢复原帖。";
   }
-  const section = deriveSectionFromTags(decision.section, decision.tags);
+  const section = normalizePostSection(decision.section);
   const status = isAdmin ? post.status : statusForVerdict(finalVerdict);
 
   const nextVisibility = body.visibility && ["PUBLIC", "VERIFIED", "TRUSTED"].includes(body.visibility)
@@ -491,6 +495,7 @@ posts.patch("/:id", requireAuth, async (c) => {
     title: nextTitle,
     reason: finalReason,
     status,
+    section,
   });
   await notifyModerationOutcome(c.env, authorEmail, id, nextTitle, status, finalReason);
 
