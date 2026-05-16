@@ -161,14 +161,13 @@ async function runReportEvaluation(
 
   if (evalResult.action === "hide_target") {
     const hidden = await hideTarget(env.DB, targetType, targetId);
-    const nextStatus = hidden ? "RESOLVED" : "OPEN";
-    await env.DB
-      .prepare(
-        `UPDATE reports SET status = ?, resolved_note = ?, resolved_by_id = ?, resolved_at = datetime('now') WHERE id = ?`,
-      )
-      .bind(nextStatus, evalResult.reason, "system-xiao-t", reportId)
-      .run();
     if (hidden) {
+      await env.DB
+        .prepare(
+          `UPDATE reports SET status = 'RESOLVED', resolved_note = ?, resolved_by_id = 'system-xiao-t', resolved_at = datetime('now') WHERE id = ?`,
+        )
+        .bind(evalResult.reason, reportId)
+        .run();
       await notify(env.DB, reporterId, "REPORT_AUTO_RESOLVED", {
         reportId,
         targetType,
@@ -183,13 +182,32 @@ async function runReportEvaluation(
           reason: evalResult.reason,
         });
       }
+      await audit(env.DB, "system-xiao-t", "REPORT_AUTO_HIDE", "Report", reportId, {
+        verdict: evalResult.verdict,
+        targetType,
+        targetId,
+      });
+    } else {
+      // Hide failed (target deleted / wrong type). Don't pretend it's RESOLVED;
+      // escalate to admin so they can take whatever action remains.
+      await env.DB
+        .prepare(
+          "UPDATE reports SET resolved_note = ? WHERE id = ?",
+        )
+        .bind(`AI 判定违规但自动隐藏失败,需人工处理: ${evalResult.reason}`, reportId)
+        .run();
+      await notify(env.DB, reporterId, "REPORT_RECEIVED", {
+        reportId,
+        targetType,
+        targetId,
+        reason: "AI 已判定违规,但自动隐藏失败,已转人工",
+      });
+      await audit(env.DB, "system-xiao-t", "REPORT_AUTO_HIDE_FAILED", "Report", reportId, {
+        verdict: evalResult.verdict,
+        targetType,
+        targetId,
+      });
     }
-    await audit(env.DB, "system-xiao-t", "REPORT_AUTO_HIDE", "Report", reportId, {
-      verdict: evalResult.verdict,
-      targetType,
-      targetId,
-      hidden,
-    });
     return;
   }
 

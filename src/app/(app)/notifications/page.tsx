@@ -185,7 +185,12 @@ function notificationText(n: Notification): { title: string; href?: string } {
       };
     }
     default:
-      return { title: n.kind };
+      // Unknown kind — surface as a soft "system message" rather than the
+      // raw SHOUTY_SNAKE_CASE identifier. Log so we notice in dev.
+      if (typeof console !== "undefined") {
+        console.warn("Unhandled notification kind:", n.kind, p);
+      }
+      return { title: "你收到一条系统通知" };
   }
 }
 

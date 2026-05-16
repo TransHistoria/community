@@ -233,8 +233,11 @@ export interface Post {
   author_name: string;
   author_avatar?: string | null;
   comment_count?: number;
-  canEdit?: boolean;
+  /** Set on list endpoint (snake_case for SQL alias). */
+  like_count?: number;
+  /** Set on detail endpoint (computed at request time). */
   likeCount?: number;
+  canEdit?: boolean;
   liked?: boolean;
   bookmarked?: boolean;
   subscribed?: boolean;

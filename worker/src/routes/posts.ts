@@ -46,12 +46,24 @@ function rank(tier: string): number {
   return TIER_RANK[tier] ?? 0;
 }
 
-function buildVisibilityCondition(viewer: { id: string; tier: string } | null): string {
-  if (!viewer) return "p.visibility = 'PUBLIC'";
-  if (rank(viewer.tier) >= rank("TRUSTED")) return "1=1";
+/**
+ * Build a parameterized visibility clause. Returns SQL + params so the caller
+ * can splice both into the larger query. Eliminates string-concatenated IDs.
+ */
+function buildVisibilityClause(
+  viewer: { id: string; tier: string } | null,
+): { sql: string; params: unknown[] } {
+  if (!viewer) return { sql: "p.visibility = 'PUBLIC'", params: [] };
+  if (rank(viewer.tier) >= rank("TRUSTED")) return { sql: "1=1", params: [] };
   if (rank(viewer.tier) >= rank("VERIFIED"))
-    return "(p.visibility IN ('PUBLIC','VERIFIED') OR p.author_id = '" + viewer.id + "')";
-  return "(p.visibility = 'PUBLIC' OR p.author_id = '" + viewer.id + "')";
+    return {
+      sql: "(p.visibility IN ('PUBLIC','VERIFIED') OR p.author_id = ?)",
+      params: [viewer.id],
+    };
+  return {
+    sql: "(p.visibility = 'PUBLIC' OR p.author_id = ?)",
+    params: [viewer.id],
+  };
 }
 
 async function audit(
@@ -212,14 +224,18 @@ posts.get("/", optionalAuth, async (c) => {
   const limit = 30;
   const offset = (pageNum - 1) * limit;
 
-  const conditions: string[] = [
-    buildVisibilityCondition(viewer),
-    viewer
-      ? `(p.status = 'PUBLISHED' OR p.author_id = '${viewer.id}' OR ? = 'ADMIN')`
-      : "p.status = 'PUBLISHED'",
-  ];
-  const params: unknown[] = [];
-  if (viewer) params.push(viewer.tier);
+  const vis = buildVisibilityClause(viewer);
+  const conditions: string[] = [vis.sql];
+  const params: unknown[] = [...vis.params];
+  if (viewer) {
+    // PUBLISHED for everyone; the author also sees their own non-PUBLISHED
+    // (drafts, pending, rejected); admins see everything. Drafts are scoped
+    // by author_id check, so a draft never appears in another user's list.
+    conditions.push("(p.status = 'PUBLISHED' OR p.author_id = ? OR ? = 'ADMIN')");
+    params.push(viewer.id, viewer.tier);
+  } else {
+    conditions.push("p.status = 'PUBLISHED'");
+  }
 
   if (tag) {
     // tags is a JSON array stored as text; quick substring match is fine for
@@ -249,17 +265,26 @@ posts.get("/", optionalAuth, async (c) => {
   }
 
   const where = conditions.join(" AND ");
+  // Single-pass aggregation: join against a derived counts table and a derived
+  // likes table so we don't run N subqueries per page row.
   const rows = await c.env.DB.prepare(
     `SELECT p.*, u.handle AS author_handle, u.display_name AS author_name, u.avatar_url AS author_avatar,
-       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.is_hidden = 0) AS comment_count
+       COALESCE(cc.n, 0) AS comment_count,
+       COALESCE(lc.n, 0) AS like_count
      FROM posts p
      JOIN users u ON u.id = p.author_id
+     LEFT JOIN (
+       SELECT post_id, COUNT(*) AS n FROM comments WHERE post_id IS NOT NULL AND is_hidden = 0 GROUP BY post_id
+     ) cc ON cc.post_id = p.id
+     LEFT JOIN (
+       SELECT post_id, COUNT(*) AS n FROM post_likes GROUP BY post_id
+     ) lc ON lc.post_id = p.id
      WHERE ${where}
      ORDER BY p.created_at DESC
      LIMIT ? OFFSET ?`,
   )
     .bind(...params, limit + 1, offset)
-    .all<PostRow & { author_handle: string; author_name: string; author_avatar: string | null; comment_count: number }>();
+    .all<PostRow & { author_handle: string; author_name: string; author_avatar: string | null; comment_count: number; like_count: number }>();
 
   const hasMore = rows.results.length > limit;
   const sliced = hasMore ? rows.results.slice(0, limit) : rows.results;
@@ -752,16 +777,32 @@ posts.delete("/:id", requireAuth, async (c) => {
 
 // GET /api/posts/:id/comments?cursor=<created_at>&limit=
 // Cursor-based pagination keyed by created_at (oldest-first). Returns a
-// `nextCursor` when more pages exist.
+// `nextCursor` when more pages exist. Only non-author/non-admin viewers
+// see PUBLISHED posts' comments.
 posts.get("/:id/comments", optionalAuth, async (c) => {
   const viewer = viewerFrom(c);
   const { id } = c.req.param();
+
+  const parent = await c.env.DB
+    .prepare("SELECT author_id, status, visibility FROM posts WHERE id = ?")
+    .bind(id)
+    .first<{ author_id: string; status: string; visibility: string }>();
+  if (!parent) return c.json({ error: "帖子不存在" }, 404);
+  const isAuthor = viewer?.id === parent.author_id;
+  const isAdmin = viewer?.tier === "ADMIN";
+  if (parent.status !== "PUBLISHED" && !isAuthor && !isAdmin) {
+    return c.json({ error: "帖子不存在" }, 404);
+  }
+  if (!meetsVisibility(viewer, parent.visibility) && !isAuthor && !isAdmin) {
+    return c.json({ error: "无权访问" }, 403);
+  }
+
   const cursor = c.req.query("cursor");
   const limitParam = parseInt(c.req.query("limit") ?? "50", 10);
   const limit = Math.min(Math.max(1, Number.isFinite(limitParam) ? limitParam : 50), 100);
 
   const conditions: string[] = ["c.post_id = ?", "(c.is_hidden = 0 OR ? = 1)"];
-  const params: unknown[] = [id, viewer?.tier === "ADMIN" ? 1 : 0];
+  const params: unknown[] = [id, isAdmin ? 1 : 0];
   if (cursor) {
     conditions.push("c.created_at > ?");
     params.push(cursor);
@@ -873,55 +914,68 @@ posts.patch("/comments/:cid/hide", requireAuth, async (c) => {
 });
 
 // ---- Likes & bookmarks ----
+//
+// Toggles use INSERT OR IGNORE + DELETE so concurrent clicks can't crash on a
+// UNIQUE-violation. Both endpoints require the post to exist and be visible
+// to the viewer (a hidden/rejected post shouldn't accumulate engagement).
+
+async function viewerCanSeePost(
+  db: D1Database,
+  viewer: { id: string; tier: string },
+  postId: string,
+): Promise<boolean> {
+  const post = await db
+    .prepare("SELECT author_id, visibility, status FROM posts WHERE id = ?")
+    .bind(postId)
+    .first<{ author_id: string; visibility: string; status: string }>();
+  if (!post) return false;
+  const isAuthor = post.author_id === viewer.id;
+  const isAdmin = viewer.tier === "ADMIN";
+  if (post.status !== "PUBLISHED" && !isAuthor && !isAdmin) return false;
+  return meetsVisibility(viewer, post.visibility) || isAuthor || isAdmin;
+}
 
 // POST /api/posts/:id/like — toggle like
 posts.post("/:id/like", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
-  const existing = await c.env.DB.prepare(
-    "SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?",
-  )
-    .bind(id, viewer.id)
-    .first();
-  if (existing) {
-    await c.env.DB.prepare(
-      "DELETE FROM post_likes WHERE post_id = ? AND user_id = ?",
-    )
-      .bind(id, viewer.id)
-      .run();
-    return c.json({ liked: false });
+  if (!(await viewerCanSeePost(c.env.DB, viewer, id))) {
+    return c.json({ error: "帖子不存在或无权访问" }, 404);
   }
-  await c.env.DB.prepare(
-    "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
-  )
+  const ins = await c.env.DB
+    .prepare("INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)")
     .bind(id, viewer.id)
     .run();
-  return c.json({ liked: true });
+  if ((ins.meta?.changes ?? 0) === 0) {
+    // already liked → unlike
+    await c.env.DB
+      .prepare("DELETE FROM post_likes WHERE post_id = ? AND user_id = ?")
+      .bind(id, viewer.id)
+      .run();
+    return c.json({ ok: true, liked: false });
+  }
+  return c.json({ ok: true, liked: true });
 });
 
 // POST /api/posts/:id/bookmark — toggle bookmark
 posts.post("/:id/bookmark", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
-  const existing = await c.env.DB.prepare(
-    "SELECT 1 FROM post_bookmarks WHERE post_id = ? AND user_id = ?",
-  )
-    .bind(id, viewer.id)
-    .first();
-  if (existing) {
-    await c.env.DB.prepare(
-      "DELETE FROM post_bookmarks WHERE post_id = ? AND user_id = ?",
-    )
-      .bind(id, viewer.id)
-      .run();
-    return c.json({ bookmarked: false });
+  if (!(await viewerCanSeePost(c.env.DB, viewer, id))) {
+    return c.json({ error: "帖子不存在或无权访问" }, 404);
   }
-  await c.env.DB.prepare(
-    "INSERT INTO post_bookmarks (post_id, user_id) VALUES (?, ?)",
-  )
+  const ins = await c.env.DB
+    .prepare("INSERT OR IGNORE INTO post_bookmarks (post_id, user_id) VALUES (?, ?)")
     .bind(id, viewer.id)
     .run();
-  return c.json({ bookmarked: true });
+  if ((ins.meta?.changes ?? 0) === 0) {
+    await c.env.DB
+      .prepare("DELETE FROM post_bookmarks WHERE post_id = ? AND user_id = ?")
+      .bind(id, viewer.id)
+      .run();
+    return c.json({ ok: true, bookmarked: false });
+  }
+  return c.json({ ok: true, bookmarked: true });
 });
 
 // GET /api/posts/me/bookmarks — list current user's bookmarked posts

@@ -253,20 +253,40 @@ function CommentItem({
       </div>
 
       {node.children.length > 0 ? (
-        <div className="mt-3 ml-11 border-l border-border pl-4 space-y-4">
-          {node.children.map((child) => (
-            <CommentItem
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              currentUserId={currentUserId}
-              isAdmin={isAdmin}
-              onReply={onReply}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
+        // Cap visual nesting at MAX_DEPTH; deeper replies still render but
+        // stop indenting so the layout doesn't drift off the right edge.
+        depth < MAX_DEPTH ? (
+          <div className="mt-3 ml-11 border-l border-border pl-4 space-y-4">
+            {node.children.map((child) => (
+              <CommentItem
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+                onReply={onReply}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 space-y-4">
+            {node.children.map((child) => (
+              <CommentItem
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+                onReply={onReply}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
+        )
       ) : null}
     </div>
   );
 }
+
+const MAX_DEPTH = 4;

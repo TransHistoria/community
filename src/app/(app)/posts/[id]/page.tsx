@@ -28,6 +28,11 @@ function PostDetailInner() {
   const { toast } = useToast();
   const [post, setPost] = React.useState<Post | null>(null);
   const [notFound, setNotFound] = React.useState(false);
+  // Ref-based locks so rapid double-clicks don't fire concurrent toggles
+  // and end up out of sync with the server.
+  const likePending = React.useRef(false);
+  const bookmarkPending = React.useRef(false);
+  const subPending = React.useRef(false);
 
   React.useEffect(() => {
     if (!id) return;
@@ -68,31 +73,40 @@ function PostDetailInner() {
   }
 
   async function toggleLike() {
-    if (!id || !user) return;
+    if (!id || !user || likePending.current) return;
+    likePending.current = true;
     const before = !!post?.liked;
     setPost((p) => (p ? { ...p, liked: !before, likeCount: (p.likeCount ?? 0) + (before ? -1 : 1) } : p));
     try {
-      await api.posts.toggleLike(id);
+      const res = await api.posts.toggleLike(id);
+      // Source of truth: reconcile to server value in case of any drift.
+      setPost((p) => (p ? { ...p, liked: res.liked } : p));
     } catch {
-      // revert
       setPost((p) => (p ? { ...p, liked: before, likeCount: (p.likeCount ?? 0) + (before ? 1 : -1) } : p));
+    } finally {
+      likePending.current = false;
     }
   }
 
   async function toggleBookmark() {
-    if (!id || !user) return;
+    if (!id || !user || bookmarkPending.current) return;
+    bookmarkPending.current = true;
     const before = !!post?.bookmarked;
     setPost((p) => (p ? { ...p, bookmarked: !before } : p));
     try {
       const res = await api.posts.toggleBookmark(id);
+      setPost((p) => (p ? { ...p, bookmarked: res.bookmarked } : p));
       toast({ title: res.bookmarked ? "已收藏" : "已取消收藏", variant: "default" });
     } catch {
       setPost((p) => (p ? { ...p, bookmarked: before } : p));
+    } finally {
+      bookmarkPending.current = false;
     }
   }
 
   async function toggleSubscribe() {
-    if (!post || !user) return;
+    if (!post || !user || subPending.current) return;
+    subPending.current = true;
     const before = !!post.subscribed;
     setPost((p) => (p ? { ...p, subscribed: !before } : p));
     try {
@@ -105,6 +119,8 @@ function PostDetailInner() {
       }
     } catch {
       setPost((p) => (p ? { ...p, subscribed: before } : p));
+    } finally {
+      subPending.current = false;
     }
   }
 

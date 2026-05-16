@@ -68,30 +68,39 @@ export default function MyDraftsPage() {
       ) : (
         <div className="space-y-3">
           {posts.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="pt-5 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-serif text-h3 truncate">{p.title || "(未命名)"}</p>
-                    <p className="text-sm text-ink-muted line-clamp-2 mt-1 whitespace-pre-wrap">
-                      {p.body}
-                    </p>
+            <Card key={p.id} className="overflow-hidden">
+              {/* Whole card body links to the edit page — draft detail is gated by status. */}
+              <Link
+                href={toQueryRoute(`/posts/${p.id}/edit`)}
+                className="block hover:bg-bg-muted/30 transition-colors"
+              >
+                <CardContent className="pt-5 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-serif text-h3 truncate">{p.title || "(未命名)"}</p>
+                      <p className="text-sm text-ink-muted line-clamp-2 mt-1 whitespace-pre-wrap">
+                        {p.body || "(空草稿)"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between text-xs text-ink-subtle pt-2 border-t border-border">
-                  <span>更新于 {relativeTime(new Date(p.updated_at))}</span>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={toQueryRoute(`/posts/${p.id}/edit`)}>
-                        <Pencil className="h-3.5 w-3.5" /> 编辑
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => remove(p.id)}>
-                      <Trash2 className="h-3.5 w-3.5" /> 删除
-                    </Button>
+                  <div className="flex items-center justify-between text-xs text-ink-subtle pt-2 border-t border-border">
+                    <span>更新于 {relativeTime(new Date(p.updated_at))}</span>
+                    <span className="inline-flex items-center gap-1 text-ink-muted">
+                      <Pencil className="h-3 w-3" /> 点击继续编辑
+                    </span>
                   </div>
-                </div>
-              </CardContent>
+                </CardContent>
+              </Link>
+              <div className="flex justify-end px-5 pb-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => remove(p.id)}
+                  className="text-ink-subtle hover:text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> 删除草稿
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
