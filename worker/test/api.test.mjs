@@ -358,20 +358,33 @@ async function main() {
     assert(status === 409, `expected 409, got ${status}`);
   });
 
-  await test("POST /api/auth/verify-invite — seed code → 200; invite code still present in DB", async () => {
+  await test("POST /api/auth/verify-invite — seed code → 200; claim persisted until verify", async () => {
     const { status, data } = await api("POST", "/api/auth/verify-invite", {
-      email: "new@ci.test",
+      email: "invited@ci.test",
       code: "CI-SEED-CODE",
     });
     assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
     assert(data.ok, "expected ok");
-    // Read-back: invite list for admin still shows the code (verify-invite validates but
-    // does not consume — used_count is incremented only on the subsequent magic-link verify)
+    // Read-back: verify-invite validates and stores a claim; invite is not consumed yet.
     const inv = await api("GET", "/api/users/me/invites", undefined, adminToken);
     assert(inv.status === 200, `invites failed: ${inv.status}`);
     const seeded = inv.data.invites.find((i) => i.code === "CI-SEED-CODE");
     assert(seeded, "seed invite code not found in list");
-    assert(typeof seeded.used_count === "number", "used_count should be a number");
+    assert(seeded.used_count === 0, `expected used_count 0 before verify, got ${seeded.used_count}`);
+  });
+
+  await test("POST /api/auth/verify — invited token consumes claim and upgrades tier", async () => {
+    const { status, data } = await api("POST", "/api/auth/verify", {
+      token: "ci-token-invited",
+    });
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.user?.tier === "VERIFIED", `expected VERIFIED, got ${data.user?.tier}`);
+
+    const inv = await api("GET", "/api/users/me/invites", undefined, adminToken);
+    assert(inv.status === 200, `invites failed: ${inv.status}`);
+    const seeded = inv.data.invites.find((i) => i.code === "CI-SEED-CODE");
+    assert(seeded, "seed invite code not found after consume");
+    assert(seeded.used_count === 1, `expected used_count 1 after verify, got ${seeded.used_count}`);
   });
 
   await test("POST /api/auth/sign-out → 200", async () => {

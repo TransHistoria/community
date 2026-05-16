@@ -60,7 +60,7 @@ export default function ManageEventPageClient() {
   const [event, setEvent] = React.useState<ApiEvent | null>(null);
   const [regs, setRegs] = React.useState<ApiReg[]>([]);
 
-  function loadData() {
+  const loadData = React.useCallback(() => {
     if (!slug) return;
     api.events.get(slug).then((res: { event: unknown }) => {
       const ev = res.event as ApiEvent;
@@ -69,11 +69,11 @@ export default function ManageEventPageClient() {
         setRegs(regsRes.registrations as ApiReg[]);
       });
     });
-  }
+  }, [slug]);
 
   React.useEffect(() => {
     loadData();
-  }, [slug]);
+  }, [loadData]);
 
   if (!event) return null;
   if (!canEditEvent(user, { organizerId: event.organizer_id } as any)) {

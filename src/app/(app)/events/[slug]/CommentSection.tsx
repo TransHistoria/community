@@ -73,13 +73,13 @@ export function CommentSection({ eventId }: { eventId: string }) {
   const { user } = useAuth();
   const [comments, setComments] = React.useState<ApiComment[]>([]);
 
-  function loadComments() {
+  const loadComments = React.useCallback(() => {
     api.events.listComments(eventId).then((res: { comments: unknown[] }) => {
       setComments(res.comments as ApiComment[]);
     });
-  }
+  }, [eventId]);
 
-  React.useEffect(() => { loadComments(); }, [eventId]);
+  React.useEffect(() => { loadComments(); }, [loadComments]);
 
   if (!user) return null;
 
