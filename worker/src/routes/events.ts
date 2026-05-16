@@ -52,14 +52,14 @@ events.get("/", optionalAuth, async (c) => {
   const limit = 60;
   const offset = (pageNum - 1) * limit;
 
-  // Build WHERE conditions based on viewer tier
-  const tierConditions = buildVisibilityCondition(viewer);
+  // Build WHERE conditions based on viewer tier (parameterized).
+  const vis = buildVisibilityClause(viewer);
   const conditions: string[] = [
-    tierConditions,
+    vis.sql,
     "e.status = 'PUBLISHED'",
     "e.end_at >= datetime('now')",
   ];
-  const params: unknown[] = [];
+  const params: unknown[] = [...vis.params];
 
   if (category) {
     conditions.push("e.category = ?");
@@ -708,13 +708,29 @@ events.patch("/comments/:commentId/hide", requireAuth, async (c) => {
 
 // ---- Visibility helper ----
 
-function buildVisibilityCondition(viewer: { id: string; tier: string } | null): string {
-  if (!viewer) return "e.visibility = 'PUBLIC'";
+/**
+ * Parameterized visibility clause for events. Returns { sql, params } so the
+ * caller splices both into the larger query — avoids string-concatenating
+ * viewer.id, which was a SQL-injection-pattern even if viewer.id is from a
+ * trusted JWT today.
+ */
+function buildVisibilityClause(
+  viewer: { id: string; tier: string } | null,
+): { sql: string; params: unknown[] } {
+  if (!viewer) return { sql: "e.visibility = 'PUBLIC'", params: [] };
   const rank: Record<string, number> = { GUEST: 0, UNVERIFIED: 1, VERIFIED: 2, TRUSTED: 3, ADMIN: 4 };
   const r = rank[viewer.tier] ?? 0;
-  if (r >= 3) return "(e.visibility IN ('PUBLIC','VERIFIED','TRUSTED') OR e.organizer_id = '" + viewer.id + "')";
-  if (r >= 2) return "(e.visibility IN ('PUBLIC','VERIFIED') OR e.organizer_id = '" + viewer.id + "')";
-  return "e.visibility = 'PUBLIC'";
+  if (r >= 3)
+    return {
+      sql: "(e.visibility IN ('PUBLIC','VERIFIED','TRUSTED') OR e.organizer_id = ?)",
+      params: [viewer.id],
+    };
+  if (r >= 2)
+    return {
+      sql: "(e.visibility IN ('PUBLIC','VERIFIED') OR e.organizer_id = ?)",
+      params: [viewer.id],
+    };
+  return { sql: "e.visibility = 'PUBLIC'", params: [] };
 }
 
 export default events;
