@@ -1,373 +1,507 @@
-# 跨性别社群活动平台 — 交接文档
+# TransHistoria/community — 交接与代码审阅报告
 
 > 私域 · 邀请制 · 隐私可控的跨性别社群活动平台
-> 当前进度：MVP 全栈完成 + 浏览器验证通过
-> 最后更新：2026-05-09
+> 审阅日期：2026-05-16
+> 审阅范围：项目结构、前端、Worker API、D1 migrations、测试/CI、部署配置、现有 README/HANDOVER 准确性
 
 ---
 
-## 一分钟速览
+## 0. 结论先读
 
-这是一个面向跨性别社群的私域活动发布与报名平台，参考 Plan House 的产品形态：
-- **不公开搜索** — 所有受护页面 noindex，只对登录成员开放
-- **邀请制 + 申请审核双通道** — 决定谁能进
-- **按信任分层** — GUEST / UNVERIFIED / VERIFIED / TRUSTED / ADMIN 五级
-- **不做私信** — 避免成为骚扰温床
-- **联系方式可见性按需开放** — 公开 / 认证可见 / 信任可见 / 申请才可见
-- **线下精确地址、线上会议链接永远只对报名通过的成员可见**
+当前项目是一个**静态导出的 Next.js 前端 + Cloudflare Workers/Hono 后端 + D1 数据库**的 MVP。核心产品面向跨性别社群活动：邀请/申请准入、分级访问、活动报名、联系方式分级可见、举报/屏蔽、管理后台。
 
-技术栈：Next.js 14 (App Router) + TypeScript + Cloudflare Workers（Hono）+ D1 + Wrangler + Tailwind。
+这次审阅最大的发现是：项目已经从早期 **Next.js 14 + Auth.js/Prisma/SQLite** 叙述演进到 **Next.js 15 static export + Worker/D1**，但文档仍大量停留在旧架构。README 与本交接文档已经重写为当前主路径。
 
----
+### 当前健康度
 
-## 视觉概览
-
-### 1. 首页（游客视角）
-
-![首页](verify-screenshots/01-home-guest.png)
-
-- 顶部细线：粉→白→蓝渐变 hairline（跨性别旗）
-- Hero：`私域 · 邀请制` 徽章 + 衬线大标题（"活动空间"用粉蓝渐变文字）+ 右侧粉蓝软渐变卡片
-- "把安全感写进默认值" 4 原则
-- 8 个活动分类卡片
-- 底部 CTA 区（粉蓝软渐变）
-
-### 2. 关于平台
-
-![关于](verify-screenshots/02-about.png)
-
-社区守则、隐私承诺、安全提示、用户分级四节，prose 排版，editorial 报刊风。
-
-### 3. 注册（双通道）
-
-| 邀请码 | 申请审核 |
-|---|---|
-| ![sign-up](verify-screenshots/03-sign-up.png) | ![apply-tab](verify-screenshots/04-sign-up-apply-tab.png) |
-
-### 4. 入站申请表单
-
-![apply](verify-screenshots/06-apply.png)
-
-四题问卷：邮箱 / 自我认同 / 来意 / 熟识成员（选填） + 同意社区守则。
-
-### 5. 登录
-
-![sign-in](verify-screenshots/05-sign-in.png)
-
-邮箱魔法链接，30 分钟内有效，不存密码。
-
-### 6. /me 概览（已登录）
-
-![me](verify-screenshots/07-me-overview.png)
-
-衬线问候 + 3 状态卡（身份 / 待处理请求 / 未读通知）+ 即将到来的活动列表。
-
-### 7. 编辑主页
-
-![profile](verify-screenshots/08-me-profile.png)
-
-handle / 昵称 / 代词 / 性别身份（自由填写） / Markdown bio + 头像上传（自动 EXIF 抹除）。
-
-### 8. 用户主页
-
-![user-profile](verify-screenshots/09-user-profile.png)
-
-Markdown bio 已渲染（粗体、斜体、列表）；联系方式区按可见性条件渲染。
-
-### 9. 邀请码
-
-![invites](verify-screenshots/10-invites.png)
-
-季度配额（VERIFIED 2 / TRUSTED 5 / ADMIN 999），命名空间隔离，一码一用。
-
-### 10. 活动详情（admin 自己的）
-
-![event-detail](verify-screenshots/14-event-detail-fixed.png)
-
-- eyebrow `聚会游玩` + 衬线大标题
-- 顶部 `分享 / 管理` 按钮组
-- 徽章：`线下` `认证成员可见`
-- 时间、地点（粗略 + 精确）、报名进度
-- markdown 介绍（H2、加粗、引用块、列表都正确渲染）
-- 组织者卡片
-- 报名 + 评论框
-
-### 11. 分享 Dialog（双 tab）
-
-| 站内推荐 | 站外分享 |
-|---|---|
-| ![share](verify-screenshots/15-share-dialog.png) | ![share-external](verify-screenshots/16-share-external.png) |
-
-- 站内：handle 模糊搜索，多选最多 10，限频 10次/小时，无自定义留言
-- 站外：链接 / 二维码 / 系统分享面板。非公开活动会用琥珀色警示条提醒访客打开会 404。
-
-### 12. 管理后台
-
-![admin-users](verify-screenshots/17-admin-users.png)
-
-双栏布局：左侧导航（申请审核 / 举报队列 / 用户管理 / 操作日志）+ 右侧内容；提级 / 封禁按钮就地操作。
-
-### 13. 移动端响应式
-
-| 首页 | 活动列表 |
-|---|---|
-| ![mobile-home](verify-screenshots/18-mobile-home.png) | ![mobile-events](verify-screenshots/19-mobile-events.png) |
-
-- 卡片单列堆叠
-- 分类胶囊换行
-- 已登录后底部固定 4 项 tab bar（活动 / 我 / 通知 / 主页）
+| 维度 | 状态 | 说明 |
+|---|---|---|
+| 前端类型检查 | ✅ 通过 | `pnpm typecheck` 通过 |
+| Worker 类型检查 | ✅ 通过 | `pnpm typecheck:worker` 通过 |
+| Lint | ⚠️ 通过但有警告 | `next lint` 已弃用；2 条 hook dependency warning |
+| Frontend build | ⚠️ 环境受限失败 | `next/font/google` 拉取 Google Fonts 失败 |
+| Vitest | ❌ 配置不匹配 | `worker/test/api.test.mjs` 是 Node harness，不是 Vitest suite |
+| 文档准确性 | ✅ 本次已更新 | README/HANDOVER 已按 Worker/D1 主路径改写 |
+| 安全关键流 | ⚠️ 有缺口 | 邀请码预校验与实际账号创建/提权未闭环 |
 
 ---
 
-## 启动与开发
+## 1. 当前架构理解
 
-### 环境要求
-- Node.js 20+
-- pnpm 10+（npm/yarn 也行，但 lock 文件是 pnpm 的）
+### 1.1 运行时拓扑
 
-### 三步启动
-```powershell
-# 1. 装依赖（首次）— 国内建议先切镜像
-pnpm config set registry https://registry.npmmirror.com
-pnpm install --network-concurrency=4
-
-# 2. 启动后端（Wrangler）
-cd worker
-pnpm install
-pnpm run setup
-pnpm run dev
-
-# 3. 启动
-cd ..
-pnpm dev                   # http://localhost:3000
+```text
+Browser
+  └─ static Next.js app (GitHub Pages / static hosting)
+       ├─ AuthContext reads/writes localStorage tc_token
+       ├─ src/lib/api.ts adds Authorization: Bearer <JWT>
+       └─ fetch NEXT_PUBLIC_API_URL / fallback / legacy host
+            ↓
+Cloudflare Worker (Hono)
+  ├─ /api/auth
+  ├─ /api/activities and /api/events compatibility alias
+  ├─ /api/users
+  ├─ /api/applications
+  ├─ /api/admin
+  ├─ /api/reports
+  ├─ /api/notifications
+  └─ /api/files
+       ↓
+Cloudflare D1 (DB), R2 (FILES), Workers Email (SEND_EMAIL)
 ```
 
-### 常用命令
-| 命令 | 作用 |
-|---|---|
-| `pnpm dev` | 启动开发服务器 |
-| `pnpm build` | 生产构建 |
-| `pnpm typecheck` | TS 类型检查 |
-| `pnpm lint` | ESLint |
-| `cd worker && pnpm run dev` | 本地运行 Worker 后端（Wrangler） |
-| `cd worker && pnpm run setup` | 部署前 migration/setup |
-| `cd worker && pnpm run deploy` | 部署到 Cloudflare（包含 setup） |
-| `pnpm tsx scripts/dev-session.ts <email>` | dev-only：mint 一个 session token |
+### 1.2 为什么前端路由看起来特殊
 
-### Dev-only 调试登录
-邮箱魔法链接在本地开发时**不发邮件**（控制台打印链接即可），但 `/api/dev/sign-in?email=admin@example.com` 这条路由能直接 mint cookie 跳过链接环节。该路由生产环境强制 404，本地 `NODE_ENV !== "production"` 时才工作。
+`next.config.mjs` 使用 `output: "export"`，所以前端不能依赖动态服务端路由。项目通过 `src/lib/query-routing.ts` 把内部路径编码到首页 query 中，例如：
 
----
+- 逻辑路径：`/events/new`
+- 静态托管链接：`/?events/new`
 
-## 数据库现状（重要！）
+各页面再用 `useSearchParams()` 解析 query-route，并在客户端渲染相应页面。这是 GitHub Pages 单入口静态站点的兼容方案。
 
-**当前是 SQLite，仅供本地验证。生产部署前必须切回 Postgres。**
+### 1.3 当前事实 schema
 
-### 为什么用 SQLite
-本地验证时没装 Postgres / Docker，临时切到 SQLite 跑通完整闭环。
+后端事实 schema 是 `worker/migrations/*.sql`，不是 `prisma/schema.prisma`。D1 表包括：
 
-### 切换路径（→ Postgres）
-1. **`prisma/schema.prisma`**：把 `provider = "sqlite"` 改回 `"postgresql"`
-2. **加回 enum 块**：把 `String` 类型的字段改回 enum（值见 `src/lib/enums.ts`，那里是 source of truth）
-3. **去掉 String 化的 Json**：把 `answers / payload / customQuestions / meta / answers` 改回 `Json` / `Json?`
-4. **去掉 JSON.stringify/parse**：所有用了 `jsonEncode` / `jsonDecode` 的地方改成直接传/取对象（约 10 处）
-5. **加回 `@db.Text`**：长文本字段（`description`、`body`、`reason`、Auth.js 的 token 字段）
-6. **可选：加回 `mode: "insensitive"`**：搜索不区分大小写（admin/users、events 列表、share-actions 共 6 处）
-7. **重新跑 `pnpm db:migrate`** 生成新迁移
+- `users`
+- `magic_tokens`
+- `invite_codes`
+- `applications`
+- `events`
+- `registrations`
+- `comments`
+- `contact_methods`
+- `contact_requests`
+- `reports`
+- `blocks`
+- `notifications`
+- `audit_logs`
 
-### Schema 双向兼容点
-我已经把 enum 的 string 值在 `src/lib/enums.ts` 集中定义，运行时值跟 Prisma 生成的 enum 完全一致。所以业务代码不需要改，只是 schema 与 schema 周边的少量代码需要回写。
-
-### 别忘了
-- **删除 SQLite migration**：`prisma/migrations/20260509043339_init/` 这个是 SQLite 版本的，切 Postgres 后要删，重新生成
-- **删除 `dev.db` 文件**（如果有）
+后续迁移应优先新增 `worker/migrations/000x_*.sql`，除非明确决定恢复 Prisma 主路径。
 
 ---
 
-## 架构地图
+## 2. 关键目录与职责
 
-### 关键目录
-
-```
+```text
 src/
 ├─ app/
-│  ├─ (marketing)/         # 公开页面（首页、关于）
-│  ├─ (auth)/              # 登录、注册、申请
-│  ├─ (app)/               # 受保护应用区（layout 调 requireUser）
-│  │  ├─ events/           # 活动 CRUD + 报名 + 评论 + 分享
-│  │  ├─ me/               # 个人中心
-│  │  ├─ u/[handle]/       # 用户主页
-│  │  └─ notifications/
-│  ├─ admin/               # 管理后台（layout 调 requireTier("ADMIN")）
-│  └─ api/
-│     ├─ auth/[...nextauth]/   # Auth.js 路由
-│     ├─ files/[...path]/      # 本地文件读取（avatar 等）
-│     └─ dev/sign-in/          # dev-only 登录辅助
+│  ├─ (marketing)/        # 首页、关于页；公开但 noindex
+│  ├─ (auth)/             # sign-in/sign-up/apply/verify；调用 Worker auth/applications API
+│  ├─ (app)/              # 活动、个人中心、用户主页、通知；客户端鉴权与 query-route
+│  └─ admin/              # 管理后台；客户端检查 ADMIN，Worker API 再强制权限
 ├─ components/
-│  ├─ ui/                  # 基础组件（Button / Input / Dialog / ...）
-│  ├─ event/               # EventCard, EventForm, ShareEventButton...
-│  ├─ user/                # TierBadge, ProfileMarkdown...
-│  ├─ moderation/          # ReportButton + actions
-│  └─ layout/              # AppShell, TopBar, MobileNav, Footer
-├─ lib/
-│  ├─ db.ts                # Prisma client 单例
-│  ├─ auth.ts              # Auth.js 配置 + 入站邀请码消费
-│  ├─ session.ts           # getCurrentUser / requireUser / requireTier
-│  ├─ access/              # 权限断言 + Prisma where 过滤器
-│  ├─ enums.ts             # 字符串字面量联合（替代 Prisma enum）
-│  ├─ json.ts              # SQLite JSON 字段读写包装
-│  ├─ env.ts               # 环境变量集中读取
-│  ├─ utils.ts             # cn / formatDateTime / slugify / randomCode
-│  ├─ mail/sender.ts       # Resend / SMTP / 控制台 三种邮件发送方式
-│  ├─ moderation/          # 关键词过滤
-│  ├─ storage/             # 本地 fs / S3 兼容 抽象
-│  └─ validators/          # Zod schemas（前后端共用）
-├─ emails/                 # React Email 模板（6 封）
-├─ middleware.ts           # 全局路由保护
-└─ styles/globals.css      # 主题 + prose 自定义
-prisma/
-├─ schema.prisma
-└─ migrations/             # 当前是 SQLite 版
-scripts/
-├─ create-admin.ts         # 命令行创建/提级 admin
-├─ issue-invite.ts         # 命令行签发邀请码
-└─ dev-session.ts          # 命令行 mint dev session
+│  ├─ layout/             # TopBar/AppShell/Footer/MobileNav/UserMenu
+│  ├─ ui/                 # Button/Card/Dialog/Input/Tabs/Toast 等基础组件
+│  ├─ event/              # EventCard/EventForm/Share*
+│  ├─ user/               # ProfileMarkdown/TierBadge/contact config
+│  ├─ moderation/         # ReportButton
+│  └─ security/           # TurnstileWidget
+├─ contexts/AuthContext.tsx
+├─ lib/api.ts             # 前端唯一 API client 主入口
+├─ lib/access/index.ts    # 前端权限谓词，镜像 Worker access 逻辑
+├─ lib/query-routing.ts   # 静态导出路由适配
+└─ styles/globals.css
+
+worker/
+├─ src/index.ts           # Hono app、CORS、debug instrumentation、route mounts
+├─ src/routes/
+│  ├─ auth.ts             # magic link/TOTP/password/security/change-email/invite precheck
+│  ├─ events.ts           # 活动 CRUD、报名、评论
+│  ├─ users.ts            # profile、contacts、contact requests、invites、blocks、export
+│  ├─ applications.ts     # 申请提交/查询/审核
+│  ├─ admin.ts            # users/reports/email/turnstile/audit
+│  ├─ reports.ts          # 用户举报入口
+│  ├─ notifications.ts    # 通知列表/mark-read
+│  └─ files.ts            # R2 upload/read
+├─ src/auth/              # jwt/magic/totp/password helpers
+├─ src/lib/               # access/enums/turnstile/utils
+├─ src/email/             # Workers Email sender + templates
+├─ migrations/            # D1 migrations
+└─ test/                  # seed.sql + api.test.mjs endpoint harness
 ```
 
-### 数据模型核心
-13 个 Prisma 模型：
-- **User** + **Account** / **Session** / **VerificationToken**（Auth.js 适配器）
-- **InviteCode** / **Application**（准入双通道）
-- **ContactMethod** / **ContactRequest**（联系方式 + 申请查看）
-- **Event** / **Registration** / **Comment**（活动闭环）
-- **Report** / **Block**（审核与安全）
-- **Notification** / **AuditLog**
-
-### 用户分级权限矩阵
-
-| Tier | 浏览 | 报名 | 评论 | 发布活动 | 管理 |
-|---|---|---|---|---|---|
-| **GUEST** 游客 | 仅 PUBLIC 概要 | × | × | × | × |
-| **UNVERIFIED** 已登录未认证 | 同游客 + 申请状态 | × | × | × | × |
-| **VERIFIED** 已认证 | + VERIFIED 范围 | √ | √ | √ | × |
-| **TRUSTED** 信任成员 | + TRUSTED 范围 | √ | √ | √ | 部分 |
-| **ADMIN** 管理员 | 全部 | √ | √ | √ | √ |
-
-权限断言全部集中在 `src/lib/access/index.ts`，pages / API / actions 都通过这里检查。
-
-### 邀请码配额（按季度）
-- VERIFIED: 2/季度
-- TRUSTED: 5/季度
-- ADMIN: 999/季度
-
 ---
 
-## 隐私设计要点
+## 3. 产品与权限模型
 
-1. **昵称即默认身份**：不收集真实姓名，handle 与 displayName 都可改
-2. **noindex**：所有页面禁止搜索引擎收录
-3. **联系方式默认 VERIFIED 可见**，新增项不对游客开放
-4. **HIDDEN_REQUEST 类型**：他人主页显示锁状态，需填写理由（≥20字）申请，对方 Yes/No
-5. **精确地址 + 会议链接**：`canViewEventDetails` 限制为「报名 CONFIRMED 才可见」，组织者和 ADMIN 例外
-6. **审计日志**：所有 admin 操作（提级 / 封禁 / 隐藏 / 处理举报）写入 `AuditLog`
-7. **数据导出 + 注销**：`/me/settings` 提供 JSON 导出 + 30 天软删
-8. **图片上传**：Magic-byte 校验 + 重压缩 + EXIF 抹除（`sharp`）
-9. **关键词过滤**：`lib/moderation/keywords.ts`，命中后 action 拒绝写入
-10. **限频**：举报 5/10min、站内分享 10/小时、申请查看联系方式有限频
+### 3.1 用户等级
 
----
-
-## 已修复的 bug
-
-### 1. 中文 slug → URL 编码不一致 → 详情页 404
-- 现象：用中文标题创建活动后，URL 变成 `/events/%E5%91%A8...`，metadata 能找到但 page 报 404
-- 原因：Next.js 14 App Router 不同上下文里 `params.slug` 编/解码不一致
-- 修法：`slugify` 限定 ASCII，非 ASCII 标题 fallback 到 `e-{8位随机}` 短码
-
-### 2. SQLite 不支持 enum / Json / mode:insensitive
-- 全部已适配，详见上面的"切回 Postgres"章节
-
-### 3. ESLint 9 与 Next 14 不兼容
-- ESLint 已 pin 到 8.57.1
-
-### 4. EventForm 日期类型推断
-- `Initial` 类型从 `Partial<FormState> & {...}`（导致 `string & Date` = never）改成 `Omit<...> & {...}`
-
----
-
-## 待你定的开放项
-
-| # | 项 | 现状 | 建议 |
-|---|---|---|---|
-| 1 | 组织者能给自己活动报名 | 当前允许 | 看产品决策；Plan House 默认允许 |
-| 2 | 分享按钮文案 "推荐给 位成员" 中间空白 | 未选人时 disabled | 改成 disabled + "请先选择成员" |
-| 3 | 数据库 | SQLite 仅本地 | 上线前切 Postgres |
-| 4 | 邮件渠道 | 控制台打印 | 配 RESEND_API_KEY 或 SMTP_* |
-| 5 | 文件存储 | 本地 fs | 生产建议接 S3/R2 |
-| 6 | 活动定时提醒 | 未实现 | schema + 模板已就绪，需接 cron |
-| 7 | E2E 测试 | 仅手工验证 | Vitest + Playwright 已配 |
-| 8 | 多城市 | 未做 | 当前只有 city 字段；做"上海站""北京站" 子域要 schema 改动 |
-| 9 | 活动审核 | 未做 | 当前任意 VERIFIED 可发；要预审就在 events.status 加 PENDING_REVIEW |
-| 10 | 申请问卷题目 | 4 题占位 | 跟运营定具体题目 |
-
----
-
-## 部署 checklist
-
-切回 Postgres 之后：
-
-- [ ] 申请域名 + DNS（建议海外或 HK，避开 ICP 备案对私域社群的合规风险）
-- [ ] 准备 Postgres 实例（Neon / Supabase / 自建）
-- [ ] 设置环境变量
-  - [ ] `DATABASE_URL`（Postgres 连接串）
-  - [ ] `AUTH_SECRET`（`openssl rand -base64 32`）
-  - [ ] `AUTH_URL`（你的域名）
-  - [ ] `RESEND_API_KEY`（邮件）
-  - [ ] `STORAGE_DRIVER=s3` + `S3_*`（文件）
-  - [ ] `ADMIN_EMAILS`（首批管理员）
-- [ ] `pnpm db:migrate deploy`
-- [ ] `pnpm create-admin <real-admin-email>`
-- [ ] 配置 cron 触发活动 24h 提醒（`/api/cron/event-reminders`，待实现）
-- [ ] 配置定时硬删过期账号（30 天后清理 SUSPENDED 且 `scheduledDeletionAt < now`，待实现）
-
----
-
-## 联系方式可见性 4 级速览
-
-| 值 | 含义 | 谁能看到 |
+| Tier | 典型来源 | 能力 |
 |---|---|---|
-| `PUBLIC` | 公开 | 所有访客（含未登录） |
-| `VERIFIED` | 认证可见 | VERIFIED+ 成员（默认值） |
-| `TRUSTED` | 信任可见 | TRUSTED+ 成员 |
-| `HIDDEN_REQUEST` | 申请才可见 | 申请并经本人同意的成员 |
+| `GUEST` | 未登录访客 | 浏览公开活动概要/公开页面有限内容 |
+| `UNVERIFIED` | 仅登录但未通过申请/邀请 | 查看本人状态，不能报名/评论/发活动 |
+| `VERIFIED` | 申请通过或受邀后应成为认证成员 | 浏览认证活动、报名、评论、发活动、签发少量邀请 |
+| `TRUSTED` | 管理员提级 | 浏览信任活动、更多邀请额度 |
+| `ADMIN` | 管理员初始化/提级 | 全部管理能力 |
 
-切换在 `/me/contacts` 添加/编辑时设置，每条联系方式独立生效。
+### 3.2 活动隐私
 
----
+活动有两个层次的隐私：
 
-## 验证状态
+1. `visibility` 决定谁能看到活动存在：`PUBLIC` / `VERIFIED` / `TRUSTED`。
+2. 精确地址 `precise_addr` 和线上链接 `online_url` 只在以下情况返回/展示：组织者、ADMIN、报名 `CONFIRMED` 或 `CHECKED_IN`。
 
-| 阶段 | 状态 |
-|---|---|
-| TypeScript typecheck | ✓ 全绿 |
-| Next.js production build | ✓ 26 路由全部编译 |
-| ESLint | ✓ 0 warning |
-| 公开页面（home / about / sign-in / sign-up / apply） | ✓ 渲染正常 |
-| 中间件未登录重定向 | ✓ 全部跳 /sign-in |
-| 已登录页面（me 全套 + 用户主页） | ✓ 渲染 + 表单提交都通过 |
-| 创建活动 + 详情 + 分享 dialog | ✓ 全流程跑通 |
-| Admin 后台 | ✓ 用户管理可用 |
-| 移动端 375x812 响应式 | ✓ 卡片堆叠 + 底部 tab bar |
+### 3.3 联系方式隐私
 
-详细截图见 `verify-screenshots/01..19.png`。
+| 值 | 含义 | 可见范围 |
+|---|---|---|
+| `PUBLIC` | 公开联系方式 | 访客也可见 |
+| `VERIFIED` | 默认值 | 认证成员及以上 |
+| `TRUSTED` | 更严格 | 信任成员及管理员 |
+| `HIDDEN_REQUEST` | 申请查看 | 本人同意后可见；本人和 ADMIN 例外 |
 
 ---
 
-## 联系
+## 4. API 审阅
 
-任何疑问可在代码里搜 `TODO` / `FIXME`，或直接看：
-- 设计原则：[`README.md`](README.md)
-- 计划文档：[`C:\Users\mycyg\.claude\plans\1-plan-house-clever-pancake.md`](.) （决策与原始 schema 草案）
-- 用户分级 / 权限：`src/lib/access/index.ts`
-- 邮件模板：`src/emails/`
-- Schema：`prisma/schema.prisma`
+### 4.1 Hono app
+
+`worker/src/index.ts` 做了：
+
+- 全局 CORS：`origin: "*"`、不带 credentials。
+- `DEBUG` 响应 instrumentation：开启后把 console 日志收集进 JSON response 的 `debug` 字段。
+- `/api/health` 健康检查。
+- 路由挂载：`/api/auth`、`/api/activities`、`/api/events` alias、`/api/users`、`/api/applications`、`/api/notifications`、`/api/admin`、`/api/reports`、`/api/files`。
+
+### 4.2 Auth
+
+主要端点：
+
+- `POST /api/auth/send-link`
+- `POST /api/auth/register-totp`
+- `POST /api/auth/login-totp`
+- `POST /api/auth/login-password`
+- `POST /api/auth/reset-password`
+- `PATCH /api/auth/security`
+- `POST /api/auth/change-email`
+- `POST /api/auth/verify`
+- `POST /api/auth/verify-invite`
+- `GET /api/auth/me`
+- `POST /api/auth/sign-out`
+
+当前会话是无状态 JWT，前端存 `localStorage.tc_token`，Worker 中间件只验证 Bearer token。
+
+### 4.3 Events
+
+主要端点：
+
+- `GET /api/activities`
+- `GET /api/activities/:slug`
+- `POST /api/activities`
+- `PATCH /api/activities/:id`
+- `DELETE /api/activities/:id`
+- `GET/POST /api/activities/:id/registrations`
+- `PATCH/DELETE /api/activities/registrations/:regId`
+- `GET/POST /api/activities/:id/comments`
+- `PATCH /api/activities/comments/:commentId/hide`
+
+### 4.4 Users
+
+主要端点：
+
+- `PATCH /api/users/me`
+- `GET /api/users/:handle`
+- `GET/POST/PATCH/DELETE /api/users/me/contacts`
+- `GET/PATCH /api/users/me/contact-requests`
+- `POST /api/users/:handle/contact-requests`
+- `GET/POST /api/users/me/invites`
+- `GET /api/users/me/blocks`
+- `POST/DELETE /api/users/:handle/block`
+- `GET /api/users/me/registrations`
+- `GET /api/users/me/export`
+
+### 4.5 Admin
+
+主要端点：
+
+- `GET/PATCH /api/admin/users`
+- `POST /api/admin/users/:id/reinitialize`
+- `PATCH /api/admin/users/:id/email`
+- `GET/POST/PATCH /api/admin/reports`
+- `POST /api/admin/test-email`
+- `POST /api/admin/test-turnstile`
+- `GET /api/admin/audit`
+
+---
+
+## 5. 代码审阅发现
+
+### P0 / 必须优先处理
+
+#### 1) 邀请码准入没有形成闭环
+
+**现象**：`POST /api/auth/verify-invite` 只验证邀请码存在、次数未满、未过期，并写入发行者的一条 `INVITE_PRECHECK` notification。`POST /api/auth/verify` 创建新用户时只看 `ADMIN_EMAILS` 和 approved application，不读取 `INVITE_PRECHECK`，也不更新 `invite_codes.used_count`。
+
+**影响**：
+
+- 邀请码不会真正消费。
+- 受邀邮箱通过 magic-link 登录后仍可能只是 `UNVERIFIED`。
+- `used_count`/`max_uses` 无法发挥准入限制作用。
+- 测试注释提到“后续 magic-link verify 才消费”，但实现未看到对应逻辑。
+
+**建议**：新增明确的数据结构，如 `invite_claims(email, code, expires_at, consumed_at)`，或在 `magic_tokens` 表加 `invite_code`。`verify-invite` 创建 claim；`send-link`/`verify` 绑定并原子消费；成功创建用户时设置 `tier='VERIFIED'`、`invited_by_id`，并 `UPDATE invite_codes SET used_count = used_count + 1`。
+
+#### 2) 当前测试入口误导
+
+`package.json` 的 `test` 是 `vitest`，但 `worker/test/api.test.mjs` 是自行实现的 Node endpoint harness，没有 `describe/it/test`，所以 `pnpm exec vitest run` 会失败。CI 的正确做法是启动 wrangler dev 后运行 `node test/api.test.mjs`。
+
+**建议**：二选一：
+
+- 把 `pnpm test` 改为完整 Worker integration workflow 的脚本；或
+- 把 endpoint harness 排除出 Vitest，并新增真正的 Vitest 单元测试。
+
+### P1 / 高优先级
+
+#### 3) 静态前端 build 依赖 Google Fonts 网络
+
+根布局使用 `next/font/google` 加载 Inter 和 Source Serif 4。当前环境下 `pnpm frontend` 因无法拉取 Google Fonts 失败。
+
+**建议**：把字体改为本地 vendored font（`next/font/local`），或在 CI/build 环境保证 Google Fonts 可访问并缓存。
+
+#### 4) `next lint` 已弃用，且有 hook dependency warnings
+
+`pnpm lint` 通过但输出：
+
+- `src/app/(app)/events/[slug]/CommentSection.tsx`：`loadComments` 缺失依赖。
+- `src/app/(app)/events/[slug]/manage/ManageEventPageClient.tsx`：`loadData` 缺失依赖。
+
+**建议**：用 `useCallback` 包裹 loader 并加入依赖，或在明确不会变化时加局部 eslint 注释。中期按 Next 提示迁移到 ESLint CLI。
+
+#### 5) 文件上传安全弱于产品承诺
+
+当前 `worker/src/routes/files.ts` 只根据 `file.type` 判断扩展名，并限制 4MB，然后直接写入 R2；没有 magic-byte 校验、图片重压缩、EXIF 抹除或内容安全扫描。旧文档中“自动 EXIF 抹除 / magic-byte 校验”的说法不符合当前实现。
+
+**建议**：至少读取文件头做签名校验；对 JPEG/PNG/WebP 做服务端重编码和 EXIF stripping；按用途拆分公开/私有 bucket 或增加访问控制。
+
+#### 6) JWT 存在 localStorage，XSS 风险较高
+
+这是静态站点常见折中，但一旦前端出现 XSS，token 会被直接读取。项目已使用 markdown sanitize，但仍需把所有用户输入链路都视为高风险。
+
+**建议**：
+
+- 继续禁止 `dangerouslySetInnerHTML`。
+- 强化 CSP（如果静态托管平台支持 header 配置）。
+- 缩短 JWT TTL，增加 refresh/rotation 或 token version。
+- 高风险操作要求二次 TOTP/密码确认。
+
+#### 7) DEBUG 响应 instrumentation 可能泄漏敏感信息
+
+Worker `DEBUG` 开启后会把 console 输出和错误 stack 附到 response。生产环境如果误开，可能泄漏内部状态。
+
+**建议**：生产环境不要设置 `DEBUG`；必要时只允许管理员或特定 header 使用，并过滤敏感字段。
+
+#### 8) 根目录和 worker 子目录 wrangler 配置重复
+
+`wrangler.jsonc` 与 `worker/wrangler.jsonc` 都存在，`main`、`migrations_dir`、`compatibility_date` 不一致。团队成员从不同工作目录部署可能得到不同结果。
+
+**建议**：保留一个权威配置，另一个加注释或删除；CI/README 明确从哪个目录执行。
+
+### P2 / 中优先级
+
+#### 9) Prisma/NextAuth 时代文件仍保留，容易误导
+
+`prisma/schema.prisma`、`prisma/seed.ts`、`scripts/create-admin.ts`、`scripts/issue-invite.ts`、`scripts/dev-session.ts` 都是 Prisma 主路径遗留。当前 Worker/D1 代码不依赖它们。
+
+**建议**：
+
+- 如果确定 Worker/D1 为唯一主路径：移动到 `legacy/` 或删除。
+- 如果还要保留本地 Prisma 模拟：文档明确其用途，并补齐与 D1 schema 的同步策略。
+
+#### 10) Worker 与前端 access 逻辑需要防漂移
+
+`worker/src/lib/access.ts` 与 `src/lib/access/index.ts` 是手动镜像。长期迭代容易出现一端改了另一端没改。
+
+**建议**：把纯 TS 权限谓词抽到共享 package，或至少加单元测试比较关键用例。
+
+#### 11) slugify 实现有前后端差异
+
+前端 `src/lib/utils.ts` 的 `slugify` 明确 ASCII-only 且非 ASCII fallback 到 `e-xxxx`；Worker `worker/src/lib/utils.ts` 注释写“保留中文”，但后续正则实际会删除中文，纯中文标题 fallback 到 `event` stem。当前创建活动走 Worker，所以不会出现中文 percent-encoding，但结果可能是 `event`/`event-xxxx`，与旧文档说法不同。
+
+**建议**：统一 slugify 实现与注释，最好共享同一函数。
+
+#### 12) CORS 完全开放符合静态前端需求，但应确认 threat model
+
+当前 CORS `origin: "*"` 且 `credentials: false`。由于使用 Bearer token，不会自动带 cookie，CSRF 风险低；但任何站点都可以调用公开 API 并诱导用户粘贴 token。
+
+**建议**：若 API 只服务固定前端域名，可限制 origin；若保留开放 API，则加强 rate-limit 和 abuse monitoring。
+
+#### 13) 缺少明显的 rate limit 实现
+
+旧交接文档提到举报/分享/联系方式申请限频，但当前审阅未看到通用 rate-limit 中间件。Cloudflare WAF/Turnstile 可覆盖部分入口，但业务限频最好在 API 层落库或 KV/Durable Object 实现。
+
+### P3 / 可后续清理
+
+- `pnpm` 版本：workflow 使用 pnpm 9，文档曾写 pnpm 10+，建议统一。
+- `package.json` 中 `lint` 依赖 `next lint`，Next 16 前迁移。
+- `README` 旧默认 API URL 曾写 `transcommunity.cyanmint.workers.dev`，实际代码 legacy fallback 是 `https://communityapi.transhistoria.org`。
+- `verify-screenshots/` 很有价值，但建议注明对应 commit/日期与是否仍代表当前 UI。
+
+---
+
+## 6. 本次实际执行的检查
+
+```text
+pnpm typecheck
+# PASS
+
+pnpm typecheck:worker
+# PASS
+
+pnpm lint
+# PASS with warnings:
+# - next lint deprecated
+# - CommentSection.tsx missing loadComments dependency
+# - ManageEventPageClient.tsx missing loadData dependency
+
+pnpm exec vitest run
+# FAIL: worker/test/api.test.mjs has no Vitest suite
+
+pnpm frontend
+# FAIL in this environment: next/font/google could not fetch Inter / Source Serif 4
+```
+
+---
+
+## 7. 开发与调试手册
+
+### 7.1 本地 Worker
+
+```bash
+cd worker
+cat > .dev.vars <<'VARS'
+JWT_SECRET=dev-secret-change-me
+ADMIN_EMAILS=admin@example.test
+CREATE_ADMIN=dev-create-admin-secret
+FRONTEND_URL=http://localhost:3000
+EMAIL_FROM="Trans Community <noreply@example.test>"
+APP_NAME=跨性别社群
+VARS
+../node_modules/.bin/wrangler d1 migrations apply transcommunity --local
+../node_modules/.bin/wrangler dev --port 8787
+```
+
+### 7.2 本地前端
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8787 pnpm dev
+```
+
+### 7.3 使用 CI 测试夹具跑 API 集成测试
+
+```bash
+cd worker
+rm -rf .wrangler .dev.vars
+cat > .dev.vars <<'VARS'
+JWT_SECRET=ci-test-secret-do-not-use-in-production
+ADMIN_EMAILS=admin@ci.test
+CREATE_ADMIN=ci-create-admin-secret
+VARS
+../node_modules/.bin/wrangler d1 migrations apply transcommunity --local
+../node_modules/.bin/wrangler d1 execute transcommunity --local --file test/seed.sql
+../node_modules/.bin/wrangler dev --port 8787
+# 新终端：
+API_BASE=http://localhost:8787 node test/api.test.mjs
+```
+
+### 7.4 首个管理员初始化
+
+1. Worker secret 设置 `CREATE_ADMIN`。
+2. 前端 `/sign-up` 输入管理员邮箱 + `CREATE_ADMIN` 密钥。
+3. 如果数据库还没有 `ADMIN`，Worker 会创建/提级该邮箱为 ADMIN。
+4. 一旦已有 ADMIN，再使用同一初始化密钥会返回 409。
+
+---
+
+## 8. 部署 checklist
+
+### 8.1 Worker
+
+- [ ] 选定唯一 wrangler 配置与执行目录。
+- [ ] 创建/确认 D1 database `transcommunity`。
+- [ ] 应用 `worker/migrations`。
+- [ ] 创建/确认 R2 bucket `transcommunity`。
+- [ ] 配置 Workers Email route 与 `SEND_EMAIL` binding。
+- [ ] 设置 secrets/vars：
+  - [ ] `JWT_SECRET`
+  - [ ] `FRONTEND_URL`
+  - [ ] `EMAIL_FROM`
+  - [ ] `APP_NAME`
+  - [ ] `ADMIN_EMAILS`
+  - [ ] `CREATE_ADMIN`（初始化后可轮换/移除）
+  - [ ] `TURNSTILE_SECRET_KEY`
+- [ ] 确认生产没有 `DEBUG`。
+- [ ] 部署后跑 `/api/health`。
+
+### 8.2 前端
+
+- [ ] 设置 `NEXT_PUBLIC_API_URL` 指向 Worker。
+- [ ] 设置 `NEXT_PUBLIC_API_FALLBACK_URL`（可选）。
+- [ ] GitHub Pages 子路径部署时设置 `NEXT_PUBLIC_BASE_PATH=/community`。
+- [ ] 设置 Turnstile site key。
+- [ ] 解决 Google Fonts build 依赖，或确保 CI 可访问。
+- [ ] 跑 `pnpm frontend` 并检查 `frontend-artifact`。
+
+### 8.3 安全上线前
+
+- [ ] 修复邀请码消费/提权闭环。
+- [ ] 增加基础 rate limit。
+- [ ] 明确 JWT TTL 与二次验证策略。
+- [ ] 检查所有 markdown/用户输入渲染路径。
+- [ ] 加强文件上传 magic-byte 校验、图片重编码与 EXIF 抹除。
+- [ ] 禁止生产 `DEBUG`。
+- [ ] 复核 CORS 策略。
+
+---
+
+## 9. 建议路线图
+
+### 第 1 阶段：安全闭环
+
+1. 修复邀请码 claim/consume。
+2. 给申请、登录、邀请码、举报、联系方式申请增加 rate limit。
+3. 修复 lint hook warnings。
+4. 明确 JWT TTL、token version 与账号禁用后的 token 失效策略。
+
+### 第 2 阶段：工程卫生
+
+1. 统一 wrangler 配置。
+2. 整理 Prisma legacy 文件。
+3. 迁移 `next lint` 到 ESLint CLI。
+4. 把 Worker endpoint harness 接入 `pnpm test:api`。
+5. 为 access predicates 建共享测试。
+
+### 第 3 阶段：部署稳定性
+
+1. 本地化字体，避免 build 依赖 Google Fonts。
+2. 给 GitHub Pages 静态站增加可配置 headers/CSP（如托管平台支持）。
+3. 为 R2 文件读取增加缓存头和更细粒度访问控制。
+4. 建立定期备份 D1 / 导出流程。
+
+### 第 4 阶段：产品增强
+
+1. 活动提醒 cron。
+2. 活动发布审核（可选）。
+3. 多城市/地区运营模型。
+4. 更完整的 admin audit/report dashboard。
+5. 可配置申请问卷。
+
+---
+
+## 10. 文件索引
+
+最常看的文件：
+
+- `README.md`：项目入口说明与本地开发。
+- `worker/src/index.ts`：Worker app 入口。
+- `worker/src/routes/auth.ts`：登录、注册、邀请码、认证安全。
+- `worker/src/routes/events.ts`：活动主流程。
+- `worker/src/routes/users.ts`：个人资料、联系方式、邀请码、屏蔽、导出。
+- `worker/src/routes/admin.ts`：管理后台 API。
+- `worker/migrations/0001_init.sql`：D1 初始 schema。
+- `src/lib/api.ts`：前端 API client。
+- `src/contexts/AuthContext.tsx`：前端 JWT 会话。
+- `src/lib/query-routing.ts`：静态导出路由。
+- `src/lib/access/index.ts` 与 `worker/src/lib/access.ts`：权限模型。
+- `.github/workflows/api-test.yml`：Worker API 集成测试的权威运行方式。
+- `.github/workflows/deploy-pages.yml`：前端静态部署。
