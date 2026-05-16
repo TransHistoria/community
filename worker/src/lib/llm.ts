@@ -468,6 +468,148 @@ export async function generateXiaoTReply(
   }
 }
 
+// ============================================================
+// Report evaluation — LLM decides whether an incoming report is
+// (a) clearly valid → hide the target;
+// (b) clearly invalid → dismiss the report;
+// (c) uncertain → escalate to admin.
+// USER-type reports always escalate; we never let the model auto-suspend
+// an account.
+// ============================================================
+
+export type ReportTargetKind = "USER" | "POST" | "EVENT" | "COMMENT";
+
+export type ReportEvaluation = {
+  verdict: "valid" | "invalid" | "uncertain";
+  action: "hide_target" | "dismiss" | "escalate";
+  reason: string;
+  classifier: "LLM" | "FALLBACK";
+  raw: string;
+};
+
+const REPORT_SYSTEM_PROMPT = `你是「跨性别社群」的举报审核助手。
+
+输入会给你:
+- targetType: USER | POST | EVENT | COMMENT
+- 被举报内容的标题和正文(USER 类型时是简介和 handle)
+- 举报理由
+
+任务: 判断举报是否成立,输出严格 JSON:
+{
+  "verdict": "valid" | "invalid" | "uncertain",
+  "action":  "hide_target" | "dismiss" | "escalate",
+  "reason":  "一句中文,会展示给被举报人和举报人"
+}
+
+判定规则:
+- valid + hide_target: 被举报内容**明显违规**(色情/约炮/广告/药品交易/人身攻击/仇恨言论/泄露他人隐私等)。自动隐藏。
+- invalid + dismiss: 内容合规,举报不成立。关闭举报,通知举报人。
+- uncertain + escalate: 任何模糊/争议/上下文敏感的情况。包括:
+  * 个人冲突类(双方各执一词)
+  * 医生/医院评价(可能是真实负面体验)
+  * 政治、性别身份相关的尖锐观点
+  * 看似攻击但其实是讨论
+  * 你无法在缺乏上下文的情况下判断时
+
+特别约束:
+- USER 类型举报永远 escalate,不让 AI 自动封号
+- 即便内容看似冒犯,如果只是观点表达而非攻击具体的人,默认 escalate
+- 宁可 escalate 也别 false positive
+
+返回严格 JSON,无 markdown 围栏。`;
+
+function normalizeReportVerdict(value: unknown): ReportEvaluation["verdict"] | null {
+  if (typeof value !== "string") return null;
+  const v = value.toLowerCase();
+  if (v === "valid" || v === "invalid" || v === "uncertain") return v;
+  return null;
+}
+
+function normalizeReportAction(value: unknown): ReportEvaluation["action"] | null {
+  if (typeof value !== "string") return null;
+  const v = value.toLowerCase();
+  if (v === "hide_target" || v === "dismiss" || v === "escalate") return v;
+  return null;
+}
+
+function fallbackReportEval(reason: string): ReportEvaluation {
+  return {
+    verdict: "uncertain",
+    action: "escalate",
+    reason,
+    classifier: "FALLBACK",
+    raw: "",
+  };
+}
+
+export async function evaluateReport(
+  env: Env,
+  input: {
+    targetType: ReportTargetKind;
+    targetTitle?: string;
+    targetBody: string;
+    reason: string;
+  },
+): Promise<ReportEvaluation> {
+  // USER reports always escalate.
+  if (input.targetType === "USER") {
+    return {
+      verdict: "uncertain",
+      action: "escalate",
+      reason: "用户类型举报需要管理员人工处理。",
+      classifier: "FALLBACK",
+      raw: "",
+    };
+  }
+
+  if (!(env.LLM_API_KEY ?? "").trim()) {
+    return fallbackReportEval("LLM 未配置,已转人工审核");
+  }
+
+  const userMessage = [
+    `targetType: ${input.targetType}`,
+    input.targetTitle ? `targetTitle: ${input.targetTitle.slice(0, 300)}` : null,
+    `targetBody: ${input.targetBody.slice(0, 4000)}`,
+    `reportReason: ${input.reason.slice(0, 1000)}`,
+  ]
+    .filter((s): s is string => !!s)
+    .join("\n");
+
+  let text: string;
+  let raw: string;
+  try {
+    const result = await withRetry(
+      () => callLLM(env, REPORT_SYSTEM_PROMPT, userMessage, 4000),
+      { label: "report-eval", shouldRetry: shouldRetryLlm },
+    );
+    text = result.text;
+    raw = result.raw;
+  } catch (err) {
+    console.error("evaluateReport failed after retries:", err);
+    return fallbackReportEval("审核服务暂不可用,已转人工审核");
+  }
+
+  if (!text) return { ...fallbackReportEval("审核服务返回空,已转人工审核"), raw };
+  const parsed = parseJsonOutput(text);
+  if (!parsed) return { ...fallbackReportEval("审核结果格式异常,已转人工审核"), raw };
+
+  const verdict = normalizeReportVerdict(parsed.verdict);
+  const action = normalizeReportAction(parsed.action);
+  if (!verdict || !action) {
+    return { ...fallbackReportEval("审核结果缺失关键字段,已转人工审核"), raw };
+  }
+  const reason =
+    typeof parsed.reason === "string" && parsed.reason.trim()
+      ? parsed.reason.trim().slice(0, 500)
+      : verdict === "valid"
+        ? "经 AI 审核,举报成立,已自动处理"
+        : verdict === "invalid"
+          ? "经 AI 审核,内容合规,举报不成立"
+          : "经 AI 审核,需要人工进一步判断";
+
+  return { verdict, action, reason, classifier: "LLM", raw };
+}
+
 // ---- Test seam ----
 export const __internal = {
   parseJsonOutput,
@@ -481,4 +623,7 @@ export const __internal = {
   fallbackDecision,
   shouldRetryLlm,
   HttpStatusError,
+  normalizeReportVerdict,
+  normalizeReportAction,
+  fallbackReportEval,
 };

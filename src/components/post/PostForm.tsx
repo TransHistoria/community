@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { ImagePlus } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,31 +31,77 @@ export function PostForm({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const bodyRef = React.useRef<HTMLTextAreaElement>(null);
 
   const [title, setTitle] = React.useState(initial?.title ?? "");
   const [body, setBody] = React.useState(initial?.body ?? "");
   const [visibility, setVisibility] = React.useState(initial?.visibility ?? "VERIFIED");
   const [submitting, setSubmitting] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
 
-  async function submit(e: React.FormEvent) {
+  function insertAtCursor(snippet: string) {
+    const ta = bodyRef.current;
+    if (!ta) {
+      setBody((prev) => prev + snippet);
+      return;
+    }
+    const start = ta.selectionStart ?? body.length;
+    const end = ta.selectionEnd ?? body.length;
+    const next = body.slice(0, start) + snippet + body.slice(end);
+    setBody(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const caret = start + snippet.length;
+      ta.setSelectionRange(caret, caret);
+    });
+  }
+
+  async function uploadImage(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "请选择图片文件", variant: "danger" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "图片大小请控制在 5MB 以内", variant: "danger" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await api.files.upload(file, "post-image");
+      insertAtCursor(`\n![](${res.url})\n`);
+      toast({ title: "图片已插入", variant: "success" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "上传失败";
+      toast({ title: "图片上传失败", description: msg, variant: "danger" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function submit(e: React.FormEvent, asDraft = false) {
     e.preventDefault();
     if (submitting) return;
     setSubmitting(true);
     try {
-      const payload = {
-        title: title.trim(),
-        body: body.trim(),
-        visibility,
-      };
+      const payload = { title: title.trim(), body: body.trim(), visibility };
 
       if (mode === "create") {
-        const res = await api.posts.create(payload);
-        toast({
-          title: "已提交",
-          description: "我们正在审核,通过后会出现在广场。可以去通知页面看进度。",
-          variant: "success",
-        });
-        router.push(toQueryRoute(`/posts/${res.id}`));
+        const res = await api.posts.create(payload, asDraft);
+        if (asDraft) {
+          toast({
+            title: "已保存为草稿",
+            description: "草稿只有你能看到。准备好了再发布。",
+            variant: "success",
+          });
+          router.push(toQueryRoute(`/me/drafts`));
+        } else {
+          toast({
+            title: "已提交",
+            description: "我们正在审核,通过后会出现在广场。可以去通知页面看进度。",
+            variant: "success",
+          });
+          router.push(toQueryRoute(`/posts/${res.id}`));
+        }
       } else if (postId) {
         await api.posts.update(postId, payload);
         toast({ title: "已保存", variant: "success" });
@@ -69,7 +116,7 @@ export function PostForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-6">
+    <form onSubmit={(e) => submit(e, false)} className="space-y-6">
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div className="space-y-2">
@@ -85,12 +132,32 @@ export function PostForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="body">正文</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="body">正文</Label>
+              <label className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-ink cursor-pointer">
+                <ImagePlus className="h-3.5 w-3.5" />
+                {uploading ? "上传中…" : "插入图片"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      uploadImage(f);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </label>
+            </div>
             <Textarea
               id="body"
+              ref={bodyRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="写得具体一点,让大家更容易帮到你或被你帮到。支持 Markdown。"
+              placeholder="写得具体一点,让大家更容易帮到你或被你帮到。支持 Markdown。也可以贴链接,会自动渲染。"
               minLength={5}
               maxLength={20000}
               rows={10}
@@ -126,6 +193,16 @@ export function PostForm({
         <Button type="button" variant="ghost" onClick={() => router.back()}>
           取消
         </Button>
+        {mode === "create" ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting || !title.trim() || !body.trim()}
+            onClick={(e) => submit(e as unknown as React.FormEvent, true)}
+          >
+            存为草稿
+          </Button>
+        ) : null}
         <Button type="submit" disabled={submitting}>
           {submitting ? "提交中…" : mode === "create" ? "发布" : "保存"}
         </Button>

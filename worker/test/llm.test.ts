@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   moderateAndClassify,
   generateXiaoTReply,
+  evaluateReport,
   __internal,
 } from "../src/lib/llm.js";
 import { withRetry } from "../src/lib/retry.js";
@@ -441,4 +442,74 @@ describe("generateXiaoTReply", () => {
     const reply = await generateXiaoTReply(makeEnv(), { title: "q", body: "b" });
     expect(reply).toBeNull();
   }, 20000);
+});
+
+describe("evaluateReport", () => {
+  beforeEach(() => {
+    activeFetchSpy = null;
+  });
+  afterEach(() => {
+    activeFetchSpy?.mockRestore();
+    activeFetchSpy = null;
+  });
+
+  it("always escalates USER reports without calling LLM", async () => {
+    const result = await evaluateReport(makeEnv(), {
+      targetType: "USER",
+      targetBody: "test profile",
+      reason: "用户头像太丑了",
+    });
+    expect(result.action).toBe("escalate");
+    expect(result.verdict).toBe("uncertain");
+    expect(activeFetchSpy).toBeNull();
+  });
+
+  it("returns FALLBACK escalate when LLM not configured", async () => {
+    const env = makeEnv({ LLM_API_KEY: "" });
+    const result = await evaluateReport(env, {
+      targetType: "POST",
+      targetBody: "x",
+      reason: "x",
+    });
+    expect(result.action).toBe("escalate");
+    expect(result.classifier).toBe("FALLBACK");
+  });
+
+  it("parses a hide_target verdict", async () => {
+    queueText(
+      JSON.stringify({ verdict: "valid", action: "hide_target", reason: "明显是广告" }),
+    );
+    const result = await evaluateReport(makeEnv(), {
+      targetType: "POST",
+      targetTitle: "加微信免费送",
+      targetBody: "扫码代理",
+      reason: "广告",
+    });
+    expect(result.verdict).toBe("valid");
+    expect(result.action).toBe("hide_target");
+    expect(result.reason).toContain("广告");
+  });
+
+  it("parses a dismiss verdict", async () => {
+    queueText(
+      JSON.stringify({ verdict: "invalid", action: "dismiss", reason: "讨论合理" }),
+    );
+    const result = await evaluateReport(makeEnv(), {
+      targetType: "COMMENT",
+      targetBody: "我觉得这家医院的医生其实挺耐心的",
+      reason: "诋毁医生",
+    });
+    expect(result.action).toBe("dismiss");
+  });
+
+  it("fails closed to escalate on bad JSON", async () => {
+    queueText("not json at all");
+    const result = await evaluateReport(makeEnv(), {
+      targetType: "POST",
+      targetBody: "x",
+      reason: "x",
+    });
+    expect(result.action).toBe("escalate");
+    expect(result.classifier).toBe("FALLBACK");
+  });
 });

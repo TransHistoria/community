@@ -136,6 +136,38 @@ function notificationText(n: Notification): { title: string; href?: string } {
         href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
       };
     }
+    case "REPORT_AUTO_RESOLVED": {
+      const targetType = strField("targetType");
+      const reason = strField("reason");
+      const targetId = strField("targetId");
+      const href =
+        targetType === "POST" && targetId
+          ? toQueryRoute(`/posts/${targetId}`)
+          : undefined;
+      return {
+        title: `你的举报已自动处理:${reason ?? "目标已被隐藏"}`,
+        href,
+      };
+    }
+    case "REPORT_AUTO_DISMISSED": {
+      const reason = strField("reason");
+      return {
+        title: `你的举报被关闭:${reason ?? "AI 审核认为内容合规"}`,
+      };
+    }
+    case "REPORT_RECEIVED": {
+      const reason = strField("reason");
+      return {
+        title: `举报已收到,已交人工复核${reason ? `(${reason})` : ""}`,
+      };
+    }
+    case "CONTENT_HIDDEN_BY_REPORT": {
+      const reason = strField("reason");
+      const targetType = strField("targetType");
+      return {
+        title: `你的${targetType === "EVENT" ? "活动" : targetType === "COMMENT" ? "评论" : "帖子"}因举报被隐藏:${reason ?? "审核认定违规"}`,
+      };
+    }
     case "EVENT_APPROVED":
       return { title: eventTitle ? `「${eventTitle}」已发布` : "活动已发布", href: eventHref };
     case "EVENT_PENDING_REVIEW":

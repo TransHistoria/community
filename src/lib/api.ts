@@ -218,7 +218,7 @@ export interface Post {
   resource_kind: string | null;
   cover_url: string | null;
   visibility: string;
-  status: "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "HIDDEN";
+  status: "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "HIDDEN" | "DRAFT";
   moderation_verdict: string | null;
   moderation_reason: string | null;
   moderation_categories: string | null;
@@ -234,6 +234,16 @@ export interface Post {
   author_avatar?: string | null;
   comment_count?: number;
   canEdit?: boolean;
+  likeCount?: number;
+  liked?: boolean;
+  bookmarked?: boolean;
+  subscribed?: boolean;
+}
+
+export interface Subscription {
+  kind: "AUTHOR" | "TAG";
+  ref: string;
+  created_at: string;
 }
 
 export interface ContactMethod {
@@ -445,21 +455,30 @@ export const api = {
           .filter(([, v]) => v !== undefined && v !== "")
           .map(([k, v]) => [k, String(v)]),
       ).toString();
-      return get<{ posts: Post[] }>(`/api/posts${qs ? `?${qs}` : ""}`);
+      return get<{ posts: Post[]; hasMore?: boolean; nextPage?: number }>(
+        `/api/posts${qs ? `?${qs}` : ""}`,
+      );
     },
 
     get: (id: string) => get<{ post: Post }>(`/api/posts/${id}`),
 
-    create: (data: { title: string; body: string; visibility?: string }) =>
-      post<{ ok: boolean; id: string; status: string }>("/api/posts", data),
+    create: (data: { title: string; body: string; visibility?: string }, asDraft = false) =>
+      post<{ ok: boolean; id: string; status: string }>(
+        `/api/posts${asDraft ? "?draft=1" : ""}`,
+        data,
+      ),
 
     update: (id: string, data: Partial<{ title: string; body: string; visibility: string }>) =>
       patch<{ ok: boolean; status: string }>(`/api/posts/${id}`, data),
 
     remove: (id: string) => del<{ ok: boolean }>(`/api/posts/${id}`),
 
-    listComments: (id: string) =>
-      get<{ comments: Comment[] }>(`/api/posts/${id}/comments`),
+    listComments: (id: string, cursor?: string) => {
+      const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      return get<{ comments: Comment[]; nextCursor?: string }>(
+        `/api/posts/${id}/comments${qs}`,
+      );
+    },
 
     postComment: (id: string, body: string, parentId?: string) =>
       post<{ ok: boolean; id: string; hidden: boolean }>(`/api/posts/${id}/comments`, {
@@ -467,8 +486,29 @@ export const api = {
         parentId,
       }),
 
+    deleteComment: (cid: string) =>
+      del<{ ok: boolean }>(`/api/posts/comments/${cid}`),
+
     hideComment: (cid: string) =>
       patch<{ ok: boolean }>(`/api/posts/comments/${cid}/hide`),
+
+    toggleLike: (id: string) =>
+      post<{ liked: boolean }>(`/api/posts/${id}/like`),
+
+    toggleBookmark: (id: string) =>
+      post<{ bookmarked: boolean }>(`/api/posts/${id}/bookmark`),
+
+    myBookmarks: () => get<{ posts: Post[] }>(`/api/posts/me/bookmarks`),
+
+    myDrafts: () => get<{ posts: Post[] }>(`/api/posts/me/drafts`),
+  },
+
+  subscriptions: {
+    list: () => get<{ subscriptions: Subscription[] }>("/api/users/me/subscriptions"),
+    follow: (kind: "AUTHOR" | "TAG", ref: string) =>
+      post<{ ok: boolean }>("/api/users/me/subscriptions", { kind, ref }),
+    unfollow: (kind: "AUTHOR" | "TAG", ref: string) =>
+      del<{ ok: boolean }>("/api/users/me/subscriptions", { kind, ref }),
   },
 
   // Users

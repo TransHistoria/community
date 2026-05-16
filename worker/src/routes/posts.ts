@@ -258,24 +258,27 @@ posts.get("/", optionalAuth, async (c) => {
      ORDER BY p.created_at DESC
      LIMIT ? OFFSET ?`,
   )
-    .bind(...params, limit, offset)
+    .bind(...params, limit + 1, offset)
     .all<PostRow & { author_handle: string; author_name: string; author_avatar: string | null; comment_count: number }>();
+
+  const hasMore = rows.results.length > limit;
+  const sliced = hasMore ? rows.results.slice(0, limit) : rows.results;
 
   // Redact moderation fields except for admin viewers — non-admin clients
   // should never see the raw LLM rationale.
   const redact = viewer?.tier !== "ADMIN";
   const items = redact
-    ? rows.results.map((p) => ({
+    ? sliced.map((p) => ({
         ...p,
         moderation_raw: null,
         moderation_categories: null,
       }))
-    : rows.results;
+    : sliced;
 
-  return c.json({ posts: items });
+  return c.json({ posts: items, hasMore, nextPage: hasMore ? pageNum + 1 : undefined });
 });
 
-// GET /api/posts/:id — detail
+// GET /api/posts/:id — detail (includes like/bookmark counts + viewer state)
 posts.get("/:id", optionalAuth, async (c) => {
   const viewer = viewerFrom(c);
   const { id } = c.req.param();
@@ -301,6 +304,29 @@ posts.get("/:id", optionalAuth, async (c) => {
     return c.json({ error: "无权访问" }, 403);
   }
 
+  const likeRow = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?",
+  )
+    .bind(id)
+    .first<{ n: number }>();
+  let liked = false;
+  let bookmarked = false;
+  let subscribed = false;
+  if (viewer) {
+    const lr = await c.env.DB.prepare(
+      "SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?",
+    ).bind(id, viewer.id).first();
+    liked = !!lr;
+    const br = await c.env.DB.prepare(
+      "SELECT 1 FROM post_bookmarks WHERE post_id = ? AND user_id = ?",
+    ).bind(id, viewer.id).first();
+    bookmarked = !!br;
+    const sr = await c.env.DB.prepare(
+      "SELECT 1 FROM subscriptions WHERE user_id = ? AND kind = 'AUTHOR' AND ref = ?",
+    ).bind(viewer.id, post.author_id).first();
+    subscribed = !!sr;
+  }
+
   const safe = isAdmin
     ? post
     : { ...post, moderation_raw: null, moderation_categories: null };
@@ -309,13 +335,20 @@ posts.get("/:id", optionalAuth, async (c) => {
     post: {
       ...safe,
       canEdit: isAuthor || isAdmin,
+      likeCount: likeRow?.n ?? 0,
+      liked,
+      bookmarked,
+      subscribed,
     },
   });
 });
 
 // POST /api/posts — create (LLM-driven; always returns 200)
+// Optional ?draft=1 query: save as DRAFT and skip LLM moderation entirely.
+// Drafts are only visible to the author.
 posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
+  const asDraft = c.req.query("draft") === "1";
 
   const body = await c.req.json<{
     title: string;
@@ -328,10 +361,21 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     return c.json({ error: "标题或正文太短" }, 400);
   }
   if (text.length > 20000) return c.json({ error: "正文过长" }, 400);
-
   const visibility = ["PUBLIC", "VERIFIED", "TRUSTED"].includes(body.visibility ?? "")
     ? body.visibility!
     : "VERIFIED";
+
+  if (asDraft) {
+    const draftId = newId();
+    await c.env.DB
+      .prepare(
+        `INSERT INTO posts (id, author_id, section, title, body, visibility, status)
+         VALUES (?, ?, 'POST', ?, ?, ?, 'DRAFT')`,
+      )
+      .bind(draftId, viewer.id, title, text, visibility)
+      .run();
+    return c.json({ ok: true, id: draftId, status: "DRAFT" });
+  }
 
   const id = newId();
 
@@ -706,21 +750,37 @@ posts.delete("/:id", requireAuth, async (c) => {
 
 // ---- Comments on posts ----
 
-// GET /api/posts/:id/comments
+// GET /api/posts/:id/comments?cursor=<created_at>&limit=
+// Cursor-based pagination keyed by created_at (oldest-first). Returns a
+// `nextCursor` when more pages exist.
 posts.get("/:id/comments", optionalAuth, async (c) => {
   const viewer = viewerFrom(c);
   const { id } = c.req.param();
+  const cursor = c.req.query("cursor");
+  const limitParam = parseInt(c.req.query("limit") ?? "50", 10);
+  const limit = Math.min(Math.max(1, Number.isFinite(limitParam) ? limitParam : 50), 100);
 
+  const conditions: string[] = ["c.post_id = ?", "(c.is_hidden = 0 OR ? = 1)"];
+  const params: unknown[] = [id, viewer?.tier === "ADMIN" ? 1 : 0];
+  if (cursor) {
+    conditions.push("c.created_at > ?");
+    params.push(cursor);
+  }
   const rows = await c.env.DB.prepare(
     `SELECT c.*, u.handle AS author_handle, u.display_name AS author_name, u.avatar_url AS author_avatar
      FROM comments c JOIN users u ON u.id = c.author_id
-     WHERE c.post_id = ? AND (c.is_hidden = 0 OR ? = 1)
-     ORDER BY c.created_at ASC`,
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY c.created_at ASC
+     LIMIT ?`,
   )
-    .bind(id, viewer?.tier === "ADMIN" ? 1 : 0)
+    .bind(...params, limit + 1)
     .all<CommentRow & { author_handle: string; author_name: string; author_avatar: string | null }>();
 
-  return c.json({ comments: rows.results });
+  const hasMore = rows.results.length > limit;
+  const items = hasMore ? rows.results.slice(0, limit) : rows.results;
+  const nextCursor = hasMore ? items[items.length - 1]?.created_at : undefined;
+
+  return c.json({ comments: items, nextCursor });
 });
 
 // POST /api/posts/:id/comments — LLM-moderated, never returns moderation detail
@@ -765,6 +825,25 @@ posts.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => {
   return c.json({ ok: true, id: cid, hidden: !!hidden });
 });
 
+// DELETE /api/posts/comments/:cid — comment author (or admin) can delete
+// their own comment. We DELETE-cascade replies so the thread stays consistent.
+posts.delete("/comments/:cid", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const { cid } = c.req.param();
+
+  const comment = await c.env.DB.prepare(
+    "SELECT id, author_id FROM comments WHERE id = ?",
+  )
+    .bind(cid)
+    .first<{ id: string; author_id: string }>();
+  if (!comment) return c.json({ error: "评论不存在" }, 404);
+  if (comment.author_id !== viewer.id && viewer.tier !== "ADMIN") {
+    return c.json({ error: "无权操作" }, 403);
+  }
+  await c.env.DB.prepare("DELETE FROM comments WHERE id = ?").bind(cid).run();
+  return c.json({ ok: true });
+});
+
 // PATCH /api/posts/comments/:cid/hide — post author or admin
 posts.patch("/comments/:cid/hide", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
@@ -791,6 +870,86 @@ posts.patch("/comments/:cid/hide", requireAuth, async (c) => {
     .run();
 
   return c.json({ ok: true });
+});
+
+// ---- Likes & bookmarks ----
+
+// POST /api/posts/:id/like — toggle like
+posts.post("/:id/like", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const { id } = c.req.param();
+  const existing = await c.env.DB.prepare(
+    "SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?",
+  )
+    .bind(id, viewer.id)
+    .first();
+  if (existing) {
+    await c.env.DB.prepare(
+      "DELETE FROM post_likes WHERE post_id = ? AND user_id = ?",
+    )
+      .bind(id, viewer.id)
+      .run();
+    return c.json({ liked: false });
+  }
+  await c.env.DB.prepare(
+    "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+  )
+    .bind(id, viewer.id)
+    .run();
+  return c.json({ liked: true });
+});
+
+// POST /api/posts/:id/bookmark — toggle bookmark
+posts.post("/:id/bookmark", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const { id } = c.req.param();
+  const existing = await c.env.DB.prepare(
+    "SELECT 1 FROM post_bookmarks WHERE post_id = ? AND user_id = ?",
+  )
+    .bind(id, viewer.id)
+    .first();
+  if (existing) {
+    await c.env.DB.prepare(
+      "DELETE FROM post_bookmarks WHERE post_id = ? AND user_id = ?",
+    )
+      .bind(id, viewer.id)
+      .run();
+    return c.json({ bookmarked: false });
+  }
+  await c.env.DB.prepare(
+    "INSERT INTO post_bookmarks (post_id, user_id) VALUES (?, ?)",
+  )
+    .bind(id, viewer.id)
+    .run();
+  return c.json({ bookmarked: true });
+});
+
+// GET /api/posts/me/bookmarks — list current user's bookmarked posts
+posts.get("/me/bookmarks", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const rows = await c.env.DB.prepare(
+    `SELECT p.*, u.handle AS author_handle, u.display_name AS author_name, u.avatar_url AS author_avatar,
+       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.is_hidden = 0) AS comment_count
+     FROM post_bookmarks b
+     JOIN posts p ON p.id = b.post_id
+     JOIN users u ON u.id = p.author_id
+     WHERE b.user_id = ? AND p.status = 'PUBLISHED'
+     ORDER BY b.created_at DESC LIMIT 100`,
+  )
+    .bind(viewer.id)
+    .all();
+  return c.json({ posts: rows.results });
+});
+
+// GET /api/posts/me/drafts — list current user's DRAFT posts
+posts.get("/me/drafts", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const rows = await c.env.DB.prepare(
+    "SELECT * FROM posts WHERE author_id = ? AND status = 'DRAFT' ORDER BY updated_at DESC LIMIT 100",
+  )
+    .bind(viewer.id)
+    .all<PostRow>();
+  return c.json({ posts: rows.results });
 });
 
 // ---- Admin review queue ----

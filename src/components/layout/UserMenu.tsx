@@ -76,6 +76,12 @@ export function UserMenu({
           <Link href={toQueryRoute("/me/registrations")}>我的报名</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/bookmarks")}>我的收藏</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/drafts")}>草稿箱</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me/invites")}>我的邀请码</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

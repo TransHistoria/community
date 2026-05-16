@@ -4,7 +4,10 @@ import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Trash2, ArrowLeft, Pencil } from "lucide-react";
+import { Trash2, ArrowLeft, Pencil, Heart, Bookmark, UserPlus, UserMinus } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 import { api, type Post } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +51,7 @@ function PostDetailInner() {
   const pending = post.status === "PENDING_REVIEW";
   const rejected = post.status === "REJECTED";
   const hidden = post.status === "HIDDEN";
+  const draft = post.status === "DRAFT";
   const tags = parsePostTags(post.tags);
 
   async function remove() {
@@ -60,6 +64,47 @@ function PostDetailInner() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "删除失败";
       toast({ title: "删除失败", description: msg, variant: "danger" });
+    }
+  }
+
+  async function toggleLike() {
+    if (!id || !user) return;
+    const before = !!post?.liked;
+    setPost((p) => (p ? { ...p, liked: !before, likeCount: (p.likeCount ?? 0) + (before ? -1 : 1) } : p));
+    try {
+      await api.posts.toggleLike(id);
+    } catch {
+      // revert
+      setPost((p) => (p ? { ...p, liked: before, likeCount: (p.likeCount ?? 0) + (before ? 1 : -1) } : p));
+    }
+  }
+
+  async function toggleBookmark() {
+    if (!id || !user) return;
+    const before = !!post?.bookmarked;
+    setPost((p) => (p ? { ...p, bookmarked: !before } : p));
+    try {
+      const res = await api.posts.toggleBookmark(id);
+      toast({ title: res.bookmarked ? "已收藏" : "已取消收藏", variant: "default" });
+    } catch {
+      setPost((p) => (p ? { ...p, bookmarked: before } : p));
+    }
+  }
+
+  async function toggleSubscribe() {
+    if (!post || !user) return;
+    const before = !!post.subscribed;
+    setPost((p) => (p ? { ...p, subscribed: !before } : p));
+    try {
+      if (before) {
+        await api.subscriptions.unfollow("AUTHOR", post.author_id);
+        toast({ title: `已取消关注 ${post.author_name}`, variant: "default" });
+      } else {
+        await api.subscriptions.follow("AUTHOR", post.author_id);
+        toast({ title: `已关注 ${post.author_name}`, variant: "success" });
+      }
+    } catch {
+      setPost((p) => (p ? { ...p, subscribed: before } : p));
     }
   }
 
@@ -79,12 +124,9 @@ function PostDetailInner() {
           <CardContent className="pt-6 text-sm bg-amber-50 text-amber-900">
             <p>
               <strong>等待人工复核</strong>
-              {" — "}内容暂时仅你和管理员可见。具体进度可在<Link
-                href={toQueryRoute("/notifications")}
-                className="underline ml-1"
-              >
-                通知页面
-              </Link>查看。
+              {" — "}内容暂时仅你和管理员可见。具体进度可在
+              <Link href={toQueryRoute("/notifications")} className="underline ml-1">通知页面</Link>
+              查看。
             </p>
           </CardContent>
         </Card>
@@ -94,11 +136,8 @@ function PostDetailInner() {
         <Card>
           <CardContent className="pt-6 text-sm bg-rose-50 text-rose-900">
             <p>
-              <strong>未通过审核</strong>。{" "}
-              <Link href={toQueryRoute("/notifications")} className="underline">
-                查看通知详情
-              </Link>
-              。
+              <strong>未通过审核</strong>。
+              <Link href={toQueryRoute("/notifications")} className="underline ml-1">查看通知详情</Link>。
             </p>
           </CardContent>
         </Card>
@@ -107,7 +146,18 @@ function PostDetailInner() {
       {hidden && (isAuthor || isAdmin) ? (
         <Card>
           <CardContent className="pt-6 text-sm bg-ink/5 text-ink-muted">
-            <p>该帖已被管理员隐藏。</p>
+            <p>该帖已被管理员或 AI 审核隐藏。</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {draft && isAuthor ? (
+        <Card>
+          <CardContent className="pt-6 text-sm bg-bg-muted text-ink-muted">
+            <p>
+              <strong>草稿</strong> — 只有你能看到。
+              <Link href={toQueryRoute(`/posts/${post.id}/edit`)} className="underline ml-1">继续编辑</Link>
+            </p>
           </CardContent>
         </Card>
       ) : null}
@@ -128,18 +178,60 @@ function PostDetailInner() {
           ) : null}
         </div>
         <h1 className="font-serif text-display tracking-tight">{post.title}</h1>
-        <div className="text-sm text-ink-subtle">
+        <div className="text-sm text-ink-subtle flex items-center gap-3 flex-wrap">
           <Link
             href={toQueryRoute(`/u/${post.author_handle}`)}
             className="text-ink font-medium hover:underline"
           >
             {post.author_name}
-          </Link>{" "}
-          · {relativeTime(new Date(post.created_at))}
+          </Link>
+          <span>· {relativeTime(new Date(post.created_at))}</span>
+          {user && !isAuthor ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSubscribe}
+              className="text-xs h-7 px-2"
+            >
+              {post.subscribed ? (
+                <><UserMinus className="h-3.5 w-3.5" /> 已关注</>
+              ) : (
+                <><UserPlus className="h-3.5 w-3.5" /> 关注作者</>
+              )}
+            </Button>
+          ) : null}
         </div>
-        <div className="prose-trans whitespace-pre-wrap text-base leading-relaxed">{post.body}</div>
+        <div className="prose-trans text-base leading-relaxed">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+            {post.body}
+          </ReactMarkdown>
+        </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-border">
+        {/* Action bar — like / bookmark / report / edit / delete */}
+        <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-border">
+          {user ? (
+            <>
+              <Button
+                variant={post.liked ? "default" : "ghost"}
+                size="sm"
+                onClick={toggleLike}
+                className="gap-1.5"
+              >
+                <Heart className={"h-4 w-4 " + (post.liked ? "fill-current" : "")} />
+                {post.likeCount ?? 0}
+              </Button>
+              <Button
+                variant={post.bookmarked ? "default" : "ghost"}
+                size="sm"
+                onClick={toggleBookmark}
+                className="gap-1.5"
+              >
+                <Bookmark className={"h-4 w-4 " + (post.bookmarked ? "fill-current" : "")} />
+                {post.bookmarked ? "已收藏" : "收藏"}
+              </Button>
+            </>
+          ) : null}
+          <div className="flex-1" />
           {!isAuthor && user ? (
             <ReportButton targetType="POST" targetId={post.id} />
           ) : null}
@@ -170,4 +262,3 @@ export default function PostDetailPage() {
     </Suspense>
   );
 }
-
