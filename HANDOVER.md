@@ -437,7 +437,7 @@ API_BASE=http://localhost:8787 node test/api.test.mjs
 
 - [ ] 设置 `NEXT_PUBLIC_API_URL` 指向 Worker。
 - [ ] 设置 `NEXT_PUBLIC_API_FALLBACK_URL`（可选）。
-- [ ] GitHub Pages 子路径部署时设置 `NEXT_PUBLIC_BASE_PATH=/community`。
+- [ ] GitHub Pages 子路径部署时设置 `NEXT_PUBLIC_BASE_PATH=/community`，或增加CNAME以部署至指定域名。
 - [ ] 设置 Turnstile site key。
 - [ ] 解决 Google Fonts build 依赖，或确保 CI 可访问。
 - [ ] 跑 `pnpm frontend` 并检查 `frontend-artifact`。
