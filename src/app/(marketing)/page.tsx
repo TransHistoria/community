@@ -31,6 +31,7 @@ import PostDetailPageClient from "../(app)/posts/PostDetailPageClient";
 import EditPostPageClient from "../(app)/posts/EditPostPageClient";
 import AdminLayout from "../admin/layout";
 import AdminApplicationsPage from "../admin/applications/page";
+import AdminPostsPage from "../admin/posts/page";
 import AdminReportsPage from "../admin/reports/page";
 import AdminUsersPage from "../admin/users/page";
 import AdminAuditPage from "../admin/audit/page";
@@ -81,6 +82,7 @@ function HomePageInner() {
   const isNotifications = queryRoutePath === "/notifications";
   const isAdminIndex = queryRoutePath === "/admin";
   const isAdminApplications = queryRoutePath === "/admin/applications";
+  const isAdminPosts = queryRoutePath === "/admin/posts";
   const isAdminReports = queryRoutePath === "/admin/reports";
   const isAdminUsers = queryRoutePath === "/admin/users";
   const isAdminAudit = queryRoutePath === "/admin/audit";
@@ -155,6 +157,13 @@ function HomePageInner() {
     return (
       <AdminLayout>
         <AdminApplicationsPage />
+      </AdminLayout>
+    );
+  }
+  if (isAdminPosts) {
+    return (
+      <AdminLayout>
+        <AdminPostsPage />
       </AdminLayout>
     );
   }

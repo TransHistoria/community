@@ -143,10 +143,10 @@ events.get("/:slug", optionalAuth, async (c) => {
   return c.json({ event: result });
 });
 
-// POST /api/activities — requires VERIFIED tier and passes LLM moderation
-events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
+// POST /api/activities — requires TRUSTED tier and passes LLM moderation
+events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
   const viewer = viewerFrom(c)!;
-  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 VERIFIED 及以上权限" }, 403);
+  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 TRUSTED 及以上权限" }, 403);
 
   const body = await c.req.json<{
     title: string;

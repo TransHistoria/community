@@ -303,6 +303,49 @@ posts.get("/", optionalAuth, async (c) => {
   return c.json({ posts: items, hasMore, nextPage: hasMore ? pageNum + 1 : undefined });
 });
 
+// GET /api/posts/me/bookmarks — list current user's bookmarked posts
+posts.get("/me/bookmarks", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const rows = await c.env.DB.prepare(
+    `SELECT p.*, u.handle AS author_handle, u.display_name AS author_name, u.avatar_url AS author_avatar,
+       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.is_hidden = 0) AS comment_count
+     FROM post_bookmarks b
+     JOIN posts p ON p.id = b.post_id
+     JOIN users u ON u.id = p.author_id
+     WHERE b.user_id = ? AND p.status = 'PUBLISHED'
+     ORDER BY b.created_at DESC LIMIT 100`,
+  )
+    .bind(viewer.id)
+    .all();
+  return c.json({ posts: rows.results });
+});
+
+// GET /api/posts/me/drafts — list current user's DRAFT posts
+posts.get("/me/drafts", requireAuth, async (c) => {
+  const viewer = viewerFrom(c)!;
+  const rows = await c.env.DB.prepare(
+    "SELECT * FROM posts WHERE author_id = ? AND status = 'DRAFT' ORDER BY updated_at DESC LIMIT 100",
+  )
+    .bind(viewer.id)
+    .all<PostRow>();
+  return c.json({ posts: rows.results });
+});
+
+// ---- Admin review queue ----
+
+// GET /api/posts/admin/pending — admin queue
+posts.get("/admin/pending", requireAuth, requireTier("ADMIN"), async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT p.*, u.handle AS author_handle, u.display_name AS author_name
+     FROM posts p JOIN users u ON u.id = p.author_id
+     WHERE p.status = 'PENDING_REVIEW'
+     ORDER BY p.created_at DESC
+     LIMIT 100`,
+  )
+    .all<PostRow & { author_handle: string; author_name: string }>();
+  return c.json({ posts: rows.results });
+});
+
 // GET /api/posts/:id — detail (includes like/bookmark counts + viewer state)
 posts.get("/:id", optionalAuth, async (c) => {
   const viewer = viewerFrom(c);
@@ -976,49 +1019,6 @@ posts.post("/:id/bookmark", requireAuth, async (c) => {
     return c.json({ ok: true, bookmarked: false });
   }
   return c.json({ ok: true, bookmarked: true });
-});
-
-// GET /api/posts/me/bookmarks — list current user's bookmarked posts
-posts.get("/me/bookmarks", requireAuth, async (c) => {
-  const viewer = viewerFrom(c)!;
-  const rows = await c.env.DB.prepare(
-    `SELECT p.*, u.handle AS author_handle, u.display_name AS author_name, u.avatar_url AS author_avatar,
-       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.is_hidden = 0) AS comment_count
-     FROM post_bookmarks b
-     JOIN posts p ON p.id = b.post_id
-     JOIN users u ON u.id = p.author_id
-     WHERE b.user_id = ? AND p.status = 'PUBLISHED'
-     ORDER BY b.created_at DESC LIMIT 100`,
-  )
-    .bind(viewer.id)
-    .all();
-  return c.json({ posts: rows.results });
-});
-
-// GET /api/posts/me/drafts — list current user's DRAFT posts
-posts.get("/me/drafts", requireAuth, async (c) => {
-  const viewer = viewerFrom(c)!;
-  const rows = await c.env.DB.prepare(
-    "SELECT * FROM posts WHERE author_id = ? AND status = 'DRAFT' ORDER BY updated_at DESC LIMIT 100",
-  )
-    .bind(viewer.id)
-    .all<PostRow>();
-  return c.json({ posts: rows.results });
-});
-
-// ---- Admin review queue ----
-
-// GET /api/posts/admin/pending — admin queue
-posts.get("/admin/pending", requireAuth, requireTier("ADMIN"), async (c) => {
-  const rows = await c.env.DB.prepare(
-    `SELECT p.*, u.handle AS author_handle, u.display_name AS author_name
-     FROM posts p JOIN users u ON u.id = p.author_id
-     WHERE p.status = 'PENDING_REVIEW'
-     ORDER BY p.created_at DESC
-     LIMIT 100`,
-  )
-    .all<PostRow & { author_handle: string; author_name: string }>();
-  return c.json({ posts: rows.results });
 });
 
 // PATCH /api/posts/:id/review — admin approves / rejects pending
