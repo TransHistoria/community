@@ -6,6 +6,7 @@ import type { Env, Variables } from "@/types";
 
 import authRoutes from "@/routes/auth";
 import eventsRoutes from "@/routes/events";
+import postsRoutes from "@/routes/posts";
 import usersRoutes from "@/routes/users";
 import applicationsRoutes from "@/routes/applications";
 import notificationsRoutes from "@/routes/notifications";
@@ -121,6 +122,7 @@ app.route("/api/auth", authRoutes);
 app.route("/api/activities", eventsRoutes);
 // Backward compatibility for existing clients/tests still using /api/events.
 app.route("/api/events", eventsRoutes);
+app.route("/api/posts", postsRoutes);
 app.route("/api/users", usersRoutes);
 app.route("/api/applications", applicationsRoutes);
 app.route("/api/notifications", notificationsRoutes);

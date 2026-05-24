@@ -1,6 +1,6 @@
-import ApplyPendingPageClient from "./ApplyPendingPageClient";
+"use client";
 
-export const metadata = { title: "申请已提交" };
+import ApplyPendingPageClient from "./ApplyPendingPageClient";
 
 export default function ApplyPendingPage() {
   return <ApplyPendingPageClient />;

@@ -8,6 +8,7 @@ INSERT INTO users
   (id, email, handle, display_name, tier, status, email_verified_at, totp_secret, totp_enabled)
 VALUES
   ('ci-admin',     'admin@ci.test',     'ci_admin',     'CI Admin',     'ADMIN',    'ACTIVE', datetime('now'), 'JBSWY3DPEHPK3PXP', 1),
+  ('ci-trusted',   'trusted@ci.test',   'ci_trusted',   'CI Trusted',   'TRUSTED',  'ACTIVE', datetime('now'), NULL, 0),
   ('ci-verified',  'verified@ci.test',  'ci_verified',  'CI Verified',  'VERIFIED', 'ACTIVE', datetime('now'), NULL, 0),
   ('ci-user2',     'user2@ci.test',     'ci_user2',     'CI User2',     'VERIFIED', 'ACTIVE', datetime('now'), NULL, 0);
 
@@ -16,6 +17,7 @@ VALUES
 INSERT INTO magic_tokens (id, email, token, expires_at, used)
 VALUES
   ('mt-admin',    'admin@ci.test',    'ci-token-admin',    datetime('now', '+1 hour'), 0),
+  ('mt-trusted',  'trusted@ci.test',  'ci-token-trusted',  datetime('now', '+1 hour'), 0),
   ('mt-verified', 'verified@ci.test', 'ci-token-verified', datetime('now', '+1 hour'), 0),
   ('mt-user2',    'user2@ci.test',    'ci-token-user2',    datetime('now', '+1 hour'), 0),
   ('mt-invited',  'invited@ci.test',  'ci-token-invited',  datetime('now', '+1 hour'), 0);

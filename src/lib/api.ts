@@ -182,16 +182,71 @@ export interface Registration {
 
 export interface Comment {
   id: string;
-  event_id: string;
+  event_id: string | null;
+  post_id: string | null;
   author_id: string;
   body: string;
   parent_id: string | null;
   is_hidden: number;
   hidden_reason: string | null;
+  is_bot: number;
   created_at: string;
   author_handle: string;
   author_name: string;
   author_avatar: string | null;
+}
+
+export interface ModerationDecision {
+  verdict: "pass" | "flag" | "reject";
+  reason: string;
+  section: "POST" | "MEDICAL" | "RESOURCE" | "EVENT";
+  categories: string[];
+  classifier: "LLM" | "FALLBACK" | "KEYWORD" | "MANUAL";
+  raw?: string;
+}
+
+export interface Post {
+  id: string;
+  author_id: string;
+  section: "POST" | "MEDICAL" | "RESOURCE";
+  title: string;
+  body: string;
+  tags: string;
+  hospital: string | null;
+  doctor: string | null;
+  city: string | null;
+  resource_kind: string | null;
+  cover_url: string | null;
+  visibility: string;
+  status: "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "HIDDEN" | "DRAFT";
+  moderation_verdict: string | null;
+  moderation_reason: string | null;
+  moderation_categories: string | null;
+  moderation_raw: string | null;
+  moderation_classifier: string | null;
+  moderated_at: string | null;
+  reviewed_by_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  author_handle: string;
+  author_name: string;
+  author_avatar?: string | null;
+  comment_count?: number;
+  /** Set on list endpoint (snake_case for SQL alias). */
+  like_count?: number;
+  /** Set on detail endpoint (computed at request time). */
+  likeCount?: number;
+  canEdit?: boolean;
+  liked?: boolean;
+  bookmarked?: boolean;
+  subscribed?: boolean;
+}
+
+export interface Subscription {
+  kind: "AUTHOR" | "TAG";
+  ref: string;
+  created_at: string;
 }
 
 export interface ContactMethod {
@@ -355,10 +410,15 @@ export const api = {
 
     get: (slug: string) => get<{ event: Event }>(`/api/activities/${slug}`),
 
-    create: (data: EventUpsertData) => post<{ ok: boolean; slug: string }>("/api/activities", data),
+    create: (data: EventUpsertData, asDraft = false) =>
+      post<{ ok: boolean; slug: string; status?: string }>(`/api/activities${asDraft ? "?draft=1" : ""}`, data),
 
-    update: (id: string, data: Partial<EventUpsertData>) =>
-      patch<{ ok: boolean }>(`/api/activities/${id}`, data),
+    update: (
+      id: string,
+      data: Partial<EventUpsertData> & { adminStatus?: "DRAFT" | "PUBLISHED" },
+      asDraft = false,
+    ) =>
+      patch<{ ok: boolean; status?: string }>(`/api/activities/${id}${asDraft ? "?draft=1" : ""}`, data),
 
     cancel: (id: string) => del<{ ok: boolean }>(`/api/activities/${id}`),
 
@@ -384,6 +444,83 @@ export const api = {
 
     hideComment: (commentId: string) =>
       patch<{ ok: boolean }>(`/api/activities/comments/${commentId}/hide`),
+  },
+
+  // Posts — single "广场" feed. Users only supply title/body/visibility;
+  // the backend LLM derives section/tags/moderation and the response
+  // never includes moderation details.
+  posts: {
+    list: (params?: {
+      tag?: string;
+      hospital?: string;
+      doctor?: string;
+      city?: string;
+      q?: string;
+      page?: number;
+    }) => {
+      const qs = new URLSearchParams(
+        Object.entries(params ?? {})
+          .filter(([, v]) => v !== undefined && v !== "")
+          .map(([k, v]) => [k, String(v)]),
+      ).toString();
+      return get<{ posts: Post[]; hasMore?: boolean; nextPage?: number }>(
+        `/api/posts${qs ? `?${qs}` : ""}`,
+      );
+    },
+
+    get: (id: string) => get<{ post: Post }>(`/api/posts/${id}`),
+
+    create: (data: { title: string; body: string; visibility?: string }, asDraft = false) =>
+      post<{ ok: boolean; id: string; status: string }>(
+        `/api/posts${asDraft ? "?draft=1" : ""}`,
+        data,
+      ),
+
+    update: (
+      id: string,
+      data: Partial<{ title: string; body: string; visibility: string }> & { adminStatus?: "DRAFT" | "PUBLISHED" },
+      asDraft = false,
+    ) =>
+      patch<{ ok: boolean; status: string }>(`/api/posts/${id}${asDraft ? "?draft=1" : ""}`, data),
+
+    remove: (id: string) => del<{ ok: boolean }>(`/api/posts/${id}`),
+
+    listComments: (id: string, cursor?: string) => {
+      const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      return get<{ comments: Comment[]; nextCursor?: string }>(
+        `/api/posts/${id}/comments${qs}`,
+      );
+    },
+
+    postComment: (id: string, body: string, parentId?: string) =>
+      post<{ ok: boolean; id: string; hidden: boolean }>(`/api/posts/${id}/comments`, {
+        body,
+        parentId,
+      }),
+
+    deleteComment: (cid: string) =>
+      del<{ ok: boolean }>(`/api/posts/comments/${cid}`),
+
+    hideComment: (cid: string) =>
+      patch<{ ok: boolean }>(`/api/posts/comments/${cid}/hide`),
+
+    toggleLike: (id: string) =>
+      post<{ liked: boolean }>(`/api/posts/${id}/like`),
+
+    toggleBookmark: (id: string) =>
+      post<{ bookmarked: boolean }>(`/api/posts/${id}/bookmark`),
+
+    myBookmarks: () => get<{ posts: Post[] }>(`/api/posts/me/bookmarks`),
+
+    myDrafts: () => get<{ posts: Post[] }>(`/api/posts/me/drafts`),
+  },
+
+  subscriptions: {
+    list: () => get<{ subscriptions: Subscription[] }>("/api/users/me/subscriptions"),
+    follow: (kind: "AUTHOR" | "TAG", ref: string) =>
+      post<{ ok: boolean }>("/api/users/me/subscriptions", { kind, ref }),
+    unfollow: (kind: "AUTHOR" | "TAG", ref: string) =>
+      del<{ ok: boolean }>("/api/users/me/subscriptions", { kind, ref }),
   },
 
   // Users
@@ -539,6 +676,12 @@ export const api = {
 
     setUserEmail: (userId: string, email: string) =>
       patch<{ ok: boolean }>(`/api/admin/users/${userId}/email`, { email }),
+
+    // Posts moderation queue
+    listPendingPosts: () => get<{ posts: Post[] }>(`/api/posts/admin/pending`),
+
+    reviewPost: (id: string, decision: "APPROVE" | "REJECT" | "HIDE", note?: string) =>
+      patch<{ ok: boolean; status: string }>(`/api/posts/${id}/review`, { decision, note }),
   },
 
   // Files

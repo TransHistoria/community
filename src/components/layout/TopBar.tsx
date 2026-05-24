@@ -23,6 +23,12 @@ export function TopBar() {
               活动
             </Link>
             <Link
+              href={toQueryRoute("/posts")}
+              className="text-ink-muted hover:text-ink transition-colors"
+            >
+              广场
+            </Link>
+            <Link
               href={toQueryRoute("/about")}
               className="text-ink-muted hover:text-ink transition-colors"
             >

@@ -201,8 +201,8 @@ function writeReport() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-let adminToken, verifiedToken, user2Token;
-let verifiedHandle, user2Handle;
+let adminToken, trustedToken, verifiedToken, user2Token;
+let trustedHandle, verifiedHandle, user2Handle;
 let eventId, eventSlug;
 let regId;
 let commentId;
@@ -305,6 +305,19 @@ async function main() {
     assert(me.status === 200, `/me failed: ${me.status}`);
     assert(me.data.email === "admin@ci.test", `wrong email: ${me.data.email}`);
     assert(me.data.tier === "ADMIN", `wrong tier: ${me.data.tier}`);
+  });
+
+  await test("POST /api/auth/verify — trusted token → 200 + JWT; /me correct", async () => {
+    const { status, data } = await api("POST", "/api/auth/verify", {
+      token: "ci-token-trusted",
+    });
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.token, "expected token");
+    assert(data.user.tier === "TRUSTED", `expected TRUSTED, got ${data.user.tier}`);
+    trustedToken = data.token;
+    trustedHandle = data.user.handle;
+    const me = await api("GET", "/api/auth/me", undefined, trustedToken);
+    assert(me.data.email === "trusted@ci.test", "wrong email");
   });
 
   await test("POST /api/auth/verify — verified token → 200 + JWT; /me correct", async () => {
@@ -728,17 +741,17 @@ async function main() {
     assert(status === 401, `expected 401, got ${status}`);
   });
 
-  await test("POST /api/events — missing required fields → 400", async () => {
+  await test("POST /api/events — missing required fields (trusted) → 400", async () => {
     const { status } = await api(
       "POST",
       "/api/events",
       { title: "Incomplete" },
-      verifiedToken
+      trustedToken
     );
     assert(status === 400, `expected 400, got ${status}`);
   });
 
-  await test("POST /api/events — verified user → 200; GET /:slug returns persisted data", async () => {
+  await test("POST /api/events — trusted user → 200; GET /:slug returns persisted data", async () => {
     const start = new Date(Date.now() + 86_400_000).toISOString();
     const end = new Date(Date.now() + 90_000_000).toISOString();
     const { status, data } = await api(
@@ -754,20 +767,20 @@ async function main() {
         visibility: "VERIFIED",
         requireApproval: true,
       },
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
     assert(data.ok && data.slug, "expected ok + slug");
     eventSlug = data.slug;
     // Read-back: GET /:slug returns all persisted fields
-    const ev = await api("GET", `/api/events/${eventSlug}`, undefined, verifiedToken);
+    const ev = await api("GET", `/api/events/${eventSlug}`, undefined, trustedToken);
     assert(ev.status === 200, `GET event failed: ${ev.status}`);
     assert(ev.data.event.title === "CI Integration Test Event", `title mismatch: ${ev.data.event.title}`);
     assert(ev.data.event.category === "SOCIAL", `category mismatch: ${ev.data.event.category}`);
     assert(ev.data.event.format === "ONLINE", `format mismatch: ${ev.data.event.format}`);
     assert(ev.data.event.require_approval === 1, `requireApproval not persisted: ${ev.data.event.require_approval}`);
     assert(ev.data.event.visibility === "VERIFIED", `visibility mismatch: ${ev.data.event.visibility}`);
-    assert(ev.data.event.organizer_handle === verifiedHandle, "organizer_handle mismatch");
+    assert(ev.data.event.organizer_handle === trustedHandle, "organizer_handle mismatch");
     eventId = ev.data.event.id;
   });
 
@@ -781,12 +794,12 @@ async function main() {
       "PATCH",
       `/api/events/${eventId}`,
       { title: "CI Test Event (updated title)" },
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}`);
     assert(data.ok, "expected ok");
     // Read-back
-    const ev = await api("GET", `/api/events/${eventSlug}`, undefined, verifiedToken);
+    const ev = await api("GET", `/api/events/${eventSlug}`, undefined, trustedToken);
     assert(ev.data.event.title === "CI Test Event (updated title)", `title not updated: ${ev.data.event.title}`);
   });
 
@@ -844,7 +857,7 @@ async function main() {
       "GET",
       `/api/events/${eventId}/registrations`,
       undefined,
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}`);
     assert(data.registrations.length > 0, "expected at least one registration");
@@ -858,12 +871,12 @@ async function main() {
       "PATCH",
       `/api/events/registrations/${regId}`,
       { decision: "CONFIRMED" },
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}`);
     assert(data.ok, "expected ok");
     // Read-back: organizer sees CONFIRMED
-    const regs = await api("GET", `/api/events/${eventId}/registrations`, undefined, verifiedToken);
+    const regs = await api("GET", `/api/events/${eventId}/registrations`, undefined, trustedToken);
     const reg = regs.data.registrations.find((r) => r.id === regId);
     assert(reg?.status === "CONFIRMED", `expected CONFIRMED, got ${reg?.status}`);
     // Read-back: user also sees CONFIRMED
@@ -877,7 +890,7 @@ async function main() {
       "DELETE",
       `/api/events/registrations/${regId}`,
       undefined,
-      verifiedToken // organizer, not registrant
+      trustedToken // organizer, not registrant
     );
     assert(status === 403, `expected 403, got ${status}`);
   });
@@ -921,26 +934,26 @@ async function main() {
       "POST",
       `/api/events/${eventId}/comments`,
       { body: "  " },
-      verifiedToken
+      trustedToken
     );
     assert(status === 400, `expected 400, got ${status}`);
   });
 
-  await test("POST /api/events/:id/comments — verified → 200; body persisted; GET returns it", async () => {
+  await test("POST /api/events/:id/comments — trusted → 200; body persisted; GET returns it", async () => {
     const { status, data } = await api(
       "POST",
       `/api/events/${eventId}/comments`,
       { body: "CI test comment 🏳️‍⚧️" },
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
     assert(data.ok, "expected ok");
     // Read-back: comment in list with correct body
-    const list = await api("GET", `/api/events/${eventId}/comments`, undefined, verifiedToken);
+    const list = await api("GET", `/api/events/${eventId}/comments`, undefined, trustedToken);
     assert(list.data.comments.length > 0, "expected at least one comment");
     const comment = list.data.comments[0];
     assert(comment.body === "CI test comment 🏳️‍⚧️", `body mismatch: ${comment.body}`);
-    assert(comment.author_handle === verifiedHandle, `author mismatch: ${comment.author_handle}`);
+    assert(comment.author_handle === trustedHandle, `author mismatch: ${comment.author_handle}`);
     assert(comment.is_hidden === 0, `expected is_hidden 0, got ${comment.is_hidden}`);
     commentId = comment.id;
   });
@@ -961,19 +974,88 @@ async function main() {
       "PATCH",
       `/api/events/comments/${commentId}/hide`,
       {},
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}`);
     assert(data.ok, "expected ok");
     // Read-back: the comment is filtered OUT for non-admin (VERIFIED) users
-    const listVerified = await api("GET", `/api/events/${eventId}/comments`, undefined, verifiedToken);
-    const hiddenForVerified = listVerified.data.comments.find((c) => c.id === commentId);
-    assert(!hiddenForVerified, "hidden comment should not appear for non-admin users");
+    const listTrusted = await api("GET", `/api/events/${eventId}/comments`, undefined, trustedToken);
+    const hiddenForTrusted = listTrusted.data.comments.find((c) => c.id === commentId);
+    assert(!hiddenForTrusted, "hidden comment should not appear for non-admin users");
     // Admins can see hidden comments (is_hidden=0 OR viewer.tier=ADMIN)
     const listAdmin = await api("GET", `/api/events/${eventId}/comments`, undefined, adminToken);
     const visibleForAdmin = listAdmin.data.comments.find((c) => c.id === commentId);
     assert(visibleForAdmin, "admin should be able to see hidden comments");
     assert(visibleForAdmin.is_hidden === 1, `expected is_hidden 1 for admin, got ${visibleForAdmin.is_hidden}`);
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Posts
+  // ────────────────────────────────────────────────────────────────────────────
+  section("Posts");
+
+  let postId;
+  let draftPostId;
+
+  await test("GET /api/posts → 200 with posts array", async () => {
+    const { status, data } = await api("GET", "/api/posts");
+    assert(status === 200, `expected 200, got ${status}`);
+    assert(Array.isArray(data.posts), "expected posts array");
+  });
+
+  await test("POST /api/posts — no auth → 401", async () => {
+    const { status } = await api("POST", "/api/posts", {
+      title: "CI post no auth",
+      body: "This should fail because no auth token is provided.",
+    });
+    assert(status === 401, `expected 401, got ${status}`);
+  });
+
+  await test("POST /api/posts?draft=1 — verified user → 200; visible in /me/drafts", async () => {
+    const { status, data } = await api(
+      "POST",
+      "/api/posts?draft=1",
+      {
+        title: "CI draft post",
+        body: "This is a draft created by CI.",
+      },
+      verifiedToken
+    );
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.ok, "expected ok");
+    assert(data.status === "DRAFT", `expected DRAFT, got ${data.status}`);
+    draftPostId = data.id;
+
+    const drafts = await api("GET", "/api/posts/me/drafts", undefined, verifiedToken);
+    assert(drafts.status === 200, `expected 200, got ${drafts.status}`);
+    const found = drafts.data.posts.find((p) => p.id === draftPostId);
+    assert(found, "draft post not found in /api/posts/me/drafts");
+    assert(found.status === "DRAFT", `expected DRAFT, got ${found.status}`);
+  });
+
+  await test("POST /api/posts — verified user → 200 with id/status", async () => {
+    const { status, data } = await api(
+      "POST",
+      "/api/posts",
+      {
+        title: "CI published post",
+        body: "This is a normal CI post body that should pass basic validation.",
+      },
+      verifiedToken
+    );
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.ok, "expected ok");
+    assert(typeof data.id === "string" && data.id.length > 0, "expected post id");
+    assert(typeof data.status === "string" && data.status.length > 0, "expected status");
+    postId = data.id;
+  });
+
+  await test("GET /api/posts/:id — author can read newly created post record", async () => {
+    assert(postId, "postId missing from previous test");
+    const { status, data } = await api("GET", `/api/posts/${postId}`, undefined, verifiedToken);
+    assert(status === 200, `expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assert(data.post?.id === postId, "post id mismatch");
+    assert(data.post?.title === "CI published post", `title mismatch: ${data.post?.title}`);
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -1433,12 +1515,12 @@ async function main() {
       "DELETE",
       `/api/events/${eventId}`,
       undefined,
-      verifiedToken
+      trustedToken
     );
     assert(status === 200, `expected 200, got ${status}`);
     assert(data.ok, "expected ok");
     // Read-back: event is soft-deleted (status=CANCELLED), not hard-deleted
-    const ev = await api("GET", `/api/events/${eventSlug}`, undefined, verifiedToken);
+    const ev = await api("GET", `/api/events/${eventSlug}`, undefined, trustedToken);
     assert(ev.status === 200, `expected 200 (soft delete), got ${ev.status}`);
     assert(ev.data.event.status === "CANCELLED", `expected CANCELLED, got ${ev.data.event.status}`);
   });

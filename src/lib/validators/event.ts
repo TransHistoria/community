@@ -56,15 +56,9 @@ export const eventInputSchema = z
     },
     { message: "线下/混合活动需要填写城市", path: ["city"] },
   )
-  .refine(
-    (d) => {
-      if (d.format === "ONLINE" || d.format === "HYBRID") {
-        return !!d.onlineUrl && d.onlineUrl.length > 0;
-      }
-      return true;
-    },
-    { message: "线上/混合活动需要填写会议链接", path: ["onlineUrl"] },
-  );
+  ;
+// (Note: onlineUrl is optional. Some online events finalize the meeting link
+// after registration confirms; the organizer can leave it blank initially.)
 
 export type EventInput = z.infer<typeof eventInputSchema>;
 

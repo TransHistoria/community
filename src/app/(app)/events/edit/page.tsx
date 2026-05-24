@@ -1,6 +1,6 @@
-import EditEventPageClient from "../[slug]/edit/EditEventPageClient";
+"use client";
 
-export const metadata = { title: "编辑活动" };
+import EditEventPageClient from "../[slug]/edit/EditEventPageClient";
 
 export default function EditEventStaticPage() {
   return <EditEventPageClient />;

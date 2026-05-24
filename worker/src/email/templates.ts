@@ -285,3 +285,36 @@ export function passwordResetEmailHtml(params: {
   return { html, text };
 }
 
+export function moderationStatusEmailHtml(params: {
+  appName: string;
+  title: string;
+  url: string;
+  status: "PENDING_REVIEW" | "REJECTED";
+  targetKind: "POST" | "EVENT";
+  reason?: string;
+}): { html: string; text: string } {
+  const targetLabel = params.targetKind === "EVENT" ? "活动" : "帖子";
+  const heading =
+    params.status === "REJECTED"
+      ? `你发布的${targetLabel}未通过社群审核`
+      : `你发布的${targetLabel}已转人工复核`;
+  const detail =
+    params.status === "REJECTED"
+      ? `内容暂时不会出现在公开列表中。你可以编辑后重新发布,或前往个人通知查看更多。`
+      : `内容将仅你和管理员可见,管理员复核通过后会自动公开。`;
+  const reasonBlock = params.reason
+    ? `<p style="font-size:13px;color:#555;background:#fafafa;padding:12px 14px;border-radius:8px;border-left:3px solid #F7A8B8;"><strong>原因:</strong> ${params.reason}</p>`
+    : "";
+
+  const html = baseLayout(
+    params.appName,
+    `<p>${heading}</p>
+<p style="font-size:15px;"><strong>${params.title}</strong></p>
+${reasonBlock}
+<p>${detail}</p>
+<p><a href="${params.url}" class="btn">查看详情</a></p>`,
+  );
+  const text = `${heading}\n\n${params.title}\n${params.reason ? `原因: ${params.reason}\n` : ""}\n${detail}\n查看: ${params.url}`;
+  return { html, text };
+}
+

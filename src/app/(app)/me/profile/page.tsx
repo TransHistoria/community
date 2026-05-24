@@ -4,9 +4,11 @@ import { api, type SessionUser } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProfileForm } from "./ProfileForm";
+import { ContactsManager } from "../contacts/ContactsManager";
 
 export default function MeProfilePage() {
   const { user } = useAuth();
+  const [contacts, setContacts] = React.useState<unknown[]>([]);
   const [initial, setInitial] = React.useState<{
     handle: string;
     displayName: string;
@@ -29,16 +31,25 @@ export default function MeProfilePage() {
     });
   }, []);
 
+  const loadContacts = React.useCallback(() => {
+    api.users.myContacts().then((res: { contacts: unknown[] }) => setContacts(res.contacts));
+  }, []);
+
+  React.useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
+
   if (!user || !initial) return null;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader
         eyebrow="我的主页"
-        title="编辑主页"
-        description="这些信息会展示给已登录的社群成员。所有项都可以随时修改。"
+        title="编辑主页与联系方式"
+        description="在同一页面管理你的个人信息与联系方式。"
       />
       <ProfileForm initial={initial} />
+      <ContactsManager contacts={contacts} onRefresh={loadContacts} />
     </div>
   );
 }

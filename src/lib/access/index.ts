@@ -67,7 +67,24 @@ export function canEditEvent(
 
 export function canCreateEvent(viewer: Viewer): boolean {
   if (!viewer) return false;
+  // Activities are high-trust (offline meetups, video sessions). Limit to TRUSTED+.
+  return rank(viewer.tier) >= rank("TRUSTED");
+}
+
+// ---------- Posts (POST / MEDICAL / RESOURCE) ----------
+
+export function canCreatePost(viewer: Viewer): boolean {
+  if (!viewer) return false;
   return rank(viewer.tier) >= rank("VERIFIED");
+}
+
+export function canEditPost(
+  viewer: Viewer,
+  post: { author_id?: string; authorId?: string },
+): boolean {
+  if (!viewer) return false;
+  const authorId = post.author_id ?? post.authorId;
+  return viewer.id === authorId || viewer.tier === "ADMIN";
 }
 
 export function canRegister(

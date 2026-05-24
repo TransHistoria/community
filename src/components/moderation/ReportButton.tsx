@@ -21,7 +21,7 @@ export function ReportButton({
   children,
   className,
 }: {
-  targetType: "USER" | "EVENT" | "COMMENT";
+  targetType: "USER" | "EVENT" | "COMMENT" | "POST";
   targetId: string;
   children?: React.ReactNode;
   className?: string;

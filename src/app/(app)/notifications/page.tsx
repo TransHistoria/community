@@ -66,8 +66,131 @@ function notificationText(n: Notification): { title: string; href?: string } {
       return { title: eventTitle ? `有人向你推荐了「${eventTitle}」` : "有人向你推荐了一个活动", href: eventHref };
     case "APP_APPROVED":
       return { title: "你的入站申请已通过，欢迎加入！", href: toQueryRoute("/events") };
+    case "POST_APPROVED": {
+      const postId = strField("postId");
+      const title = strField("title");
+      return {
+        title: title ? `「${title}」已发布` : "你的帖子已发布",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "POST_PENDING_REVIEW": {
+      const postId = strField("postId");
+      const title = strField("title");
+      const reason = strField("reason");
+      return {
+        title: title
+          ? `「${title}」正在等待人工复核${reason ? ` — ${reason}` : ""}`
+          : "你的帖子正在等待人工复核",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "POST_REJECTED": {
+      const postId = strField("postId");
+      const title = strField("title");
+      const reason = strField("reason");
+      return {
+        title: title
+          ? `「${title}」未通过审核${reason ? ` — ${reason}` : ""}`
+          : "你的帖子未通过审核",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "XIAO_T_REPLIED": {
+      const postId = strField("postId");
+      const title = strField("title");
+      return {
+        title: title ? `小T 回复了「${title}」` : "小T 给你的帖子回复了",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "POST_BLOCKED_EVENT": {
+      const title = strField("title");
+      return {
+        title: title
+          ? `「${title}」未发布:看似活动召集,需要 TRUSTED 及以上权限`
+          : "你的内容看似活动召集,未能发布(需要 TRUSTED 权限)",
+      };
+    }
+    case "POST_RELOCATED_TO_EVENT": {
+      const eventSlug = strField("eventSlug");
+      const title = strField("title");
+      return {
+        title: title
+          ? `「${title}」已自动迁移到活动区`
+          : "你发的帖子已迁移到活动区",
+        href: eventSlug ? toQueryRoute(`/events/${eventSlug}`) : toQueryRoute("/events"),
+      };
+    }
+    case "POST_NEEDS_EVENT_INFO": {
+      const postId = strField("postId");
+      const title = strField("title");
+      const missingRaw = p.missing;
+      const missing = Array.isArray(missingRaw)
+        ? (missingRaw as unknown[]).filter((x): x is string => typeof x === "string").join("、")
+        : "";
+      return {
+        title: title
+          ? `「${title}」像是活动但信息不全${missing ? `:缺 ${missing}` : ""}`
+          : "你的帖子像是活动,但信息不全",
+        href: postId ? toQueryRoute(`/posts/${postId}`) : toQueryRoute("/posts"),
+      };
+    }
+    case "REPORT_AUTO_RESOLVED": {
+      const targetType = strField("targetType");
+      const reason = strField("reason");
+      const targetId = strField("targetId");
+      const href =
+        targetType === "POST" && targetId
+          ? toQueryRoute(`/posts/${targetId}`)
+          : undefined;
+      return {
+        title: `你的举报已自动处理:${reason ?? "目标已被隐藏"}`,
+        href,
+      };
+    }
+    case "REPORT_AUTO_DISMISSED": {
+      const reason = strField("reason");
+      return {
+        title: `你的举报被关闭:${reason ?? "AI 审核认为内容合规"}`,
+      };
+    }
+    case "REPORT_RECEIVED": {
+      const reason = strField("reason");
+      return {
+        title: `举报已收到,已交人工复核${reason ? `(${reason})` : ""}`,
+      };
+    }
+    case "CONTENT_HIDDEN_BY_REPORT": {
+      const reason = strField("reason");
+      const targetType = strField("targetType");
+      return {
+        title: `你的${targetType === "EVENT" ? "活动" : targetType === "COMMENT" ? "评论" : "帖子"}因举报被隐藏:${reason ?? "审核认定违规"}`,
+      };
+    }
+    case "EVENT_APPROVED":
+      return { title: eventTitle ? `「${eventTitle}」已发布` : "活动已发布", href: eventHref };
+    case "EVENT_PENDING_REVIEW":
+      return {
+        title: eventTitle ? `「${eventTitle}」等待复核` : "活动等待复核",
+        href: eventHref,
+      };
+    case "EVENT_REJECTED": {
+      const reason = strField("reason");
+      return {
+        title: eventTitle
+          ? `「${eventTitle}」未通过审核${reason ? ` — ${reason}` : ""}`
+          : "活动未通过审核",
+        href: eventHref,
+      };
+    }
     default:
-      return { title: n.kind };
+      // Unknown kind — surface as a soft "system message" rather than the
+      // raw SHOUTY_SNAKE_CASE identifier. Log so we notice in dev.
+      if (typeof console !== "undefined") {
+        console.warn("Unhandled notification kind:", n.kind, p);
+      }
+      return { title: "你收到一条系统通知" };
   }
 }
 

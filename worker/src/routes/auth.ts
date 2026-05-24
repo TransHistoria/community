@@ -26,6 +26,11 @@ function shouldSoftFailEmail(c: { req: { url: string } }): boolean {
 }
 
 /** Issue a JWT and return the standard login response shape. */
+/** True for accounts that exist only to author bot content (e.g. xiao_t). */
+export function isSystemUser(user: { id: string }): boolean {
+  return user.id.startsWith("system-");
+}
+
 async function issueJwt(env: Env, user: UserRow) {
   const jwt = await signJwt(
     { sub: user.id, handle: user.handle, tier: user.tier },
@@ -251,6 +256,7 @@ auth.post("/login-totp", async (c) => {
     }
   }
   if (!verified || !user) return c.json({ error: "验证码无效" }, 401);
+  if (isSystemUser(user)) return c.json({ error: "系统账号不可登录" }, 403);
 
   await c.env.DB.prepare(
     "UPDATE users SET email_verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
@@ -323,6 +329,7 @@ auth.post("/login-password", async (c) => {
   }
 
   if (!user) return c.json({ error: "登录失败" }, 500);
+  if (isSystemUser(user)) return c.json({ error: "系统账号不可登录" }, 403);
 
   await c.env.DB.prepare(
     "UPDATE users SET email_verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
@@ -582,6 +589,7 @@ auth.post("/verify", async (c) => {
   }
 
   if (!user) return c.json({ error: "用户创建失败" }, 500);
+  if (isSystemUser(user)) return c.json({ error: "系统账号不可登录" }, 403);
 
   const jwt = await signJwt(
     { sub: user.id, handle: user.handle, tier: user.tier },

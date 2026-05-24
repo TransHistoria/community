@@ -502,4 +502,56 @@ users.get("/me/export", requireAuth, async (c) => {
   });
 });
 
+// ---- Subscriptions (follow author / follow tag) ----
+
+// GET /api/users/me/subscriptions
+users.get("/me/subscriptions", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const rows = await c.env.DB
+    .prepare("SELECT kind, ref, created_at FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC")
+    .bind(userId)
+    .all<{ kind: string; ref: string; created_at: string }>();
+  return c.json({ subscriptions: rows.results });
+});
+
+// POST /api/users/me/subscriptions  body: { kind: 'AUTHOR'|'TAG', ref: string }
+users.post("/me/subscriptions", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const body = await c.req.json<{ kind?: string; ref?: string }>();
+  const kind = body.kind?.toUpperCase();
+  const ref = (body.ref ?? "").trim().slice(0, 100);
+  if ((kind !== "AUTHOR" && kind !== "TAG") || !ref) {
+    return c.json({ error: "kind 必须是 AUTHOR 或 TAG, ref 不能为空" }, 400);
+  }
+  if (kind === "AUTHOR" && ref === userId) {
+    return c.json({ error: "不能关注自己" }, 400);
+  }
+  const id = newId();
+  try {
+    await c.env.DB
+      .prepare("INSERT INTO subscriptions (id, user_id, kind, ref) VALUES (?, ?, ?, ?)")
+      .bind(id, userId, kind, ref)
+      .run();
+  } catch {
+    return c.json({ ok: true, alreadyExists: true });
+  }
+  return c.json({ ok: true });
+});
+
+// DELETE /api/users/me/subscriptions  body: { kind, ref }
+users.delete("/me/subscriptions", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const body = await c.req.json<{ kind?: string; ref?: string }>();
+  const kind = body.kind?.toUpperCase();
+  const ref = (body.ref ?? "").trim();
+  if ((kind !== "AUTHOR" && kind !== "TAG") || !ref) {
+    return c.json({ error: "kind/ref 缺失" }, 400);
+  }
+  await c.env.DB
+    .prepare("DELETE FROM subscriptions WHERE user_id = ? AND kind = ? AND ref = ?")
+    .bind(userId, kind, ref)
+    .run();
+  return c.json({ ok: true });
+});
+
 export default users;

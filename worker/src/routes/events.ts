@@ -13,7 +13,9 @@ import {
   canViewEventDetails,
 } from "@/lib/access";
 import { newId, slugify, randomCode } from "@/lib/utils";
-import { sendRegistrationStatusEmail } from "@/email/sender";
+import { sendRegistrationStatusEmail, sendModerationStatusEmail } from "@/email/sender";
+import { containsBlockedTerms } from "@/lib/keywords";
+import { moderateAndClassify } from "@/lib/llm";
 
 const events = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -50,14 +52,14 @@ events.get("/", optionalAuth, async (c) => {
   const limit = 60;
   const offset = (pageNum - 1) * limit;
 
-  // Build WHERE conditions based on viewer tier
-  const tierConditions = buildVisibilityCondition(viewer);
+  // Build WHERE conditions based on viewer tier (parameterized).
+  const vis = buildVisibilityClause(viewer);
   const conditions: string[] = [
-    tierConditions,
+    vis.sql,
     "e.status = 'PUBLISHED'",
     "e.end_at >= datetime('now')",
   ];
-  const params: unknown[] = [];
+  const params: unknown[] = [...vis.params];
 
   if (category) {
     conditions.push("e.category = ?");
@@ -141,10 +143,11 @@ events.get("/:slug", optionalAuth, async (c) => {
   return c.json({ event: result });
 });
 
-// POST /api/activities
-events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
+// POST /api/activities — requires TRUSTED tier and passes LLM moderation
+events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
   const viewer = viewerFrom(c)!;
-  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建" }, 403);
+  const asDraft = c.req.query("draft") === "1";
+  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 TRUSTED 及以上权限" }, 403);
 
   const body = await c.req.json<{
     title: string;
@@ -173,12 +176,86 @@ events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
   const slug = await uniqueSlug(c.env.DB, body.title);
   const id = newId();
 
+  if (asDraft) {
+    await c.env.DB.prepare(
+      `INSERT INTO events (id, organizer_id, title, slug, category, format, description,
+         cover_url, start_at, end_at, timezone, city, precise_addr, online_url,
+         capacity, require_approval, registration_opens_at, registration_closes_at,
+         custom_questions, visibility, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')`,
+    )
+      .bind(
+        id,
+        viewer.id,
+        body.title,
+        slug,
+        body.category,
+        body.format,
+        body.description,
+        body.coverUrl ?? null,
+        body.startAt,
+        body.endAt,
+        body.timezone ?? "Asia/Shanghai",
+        body.city ?? null,
+        body.preciseAddr ?? null,
+        body.onlineUrl ?? null,
+        body.capacity ?? null,
+        body.requireApproval ? 1 : 0,
+        body.registrationOpensAt ?? null,
+        body.registrationClosesAt ?? null,
+        body.customQuestions ? JSON.stringify(body.customQuestions) : null,
+        body.visibility ?? "VERIFIED",
+      )
+      .run();
+    return c.json({ ok: true, slug, status: "DRAFT" });
+  }
+
+  // Look up author email up-front for moderation notifications.
+  const organizerRow = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
+    .bind(viewer.id)
+    .first<{ email: string }>();
+  const organizerEmail = organizerRow?.email ?? null;
+
+  // Run moderation. Even on reject we still INSERT the event in REJECTED state
+  // so the author can see it on their own page; the public list filters it out.
+  let verdict: "pass" | "flag" | "reject" = "pass";
+  let reason = "";
+  let categoriesJson = "[]";
+  let raw = "";
+  let classifier: "LLM" | "FALLBACK" | "KEYWORD" = "LLM";
+
+  if (containsBlockedTerms(`${body.title}\n${body.description}`)) {
+    verdict = "reject";
+    reason = "命中关键词过滤,请修改内容后重新发布。";
+    classifier = "KEYWORD";
+  } else {
+    const decision = await moderateAndClassify(c.env, {
+      kind: "EVENT",
+      title: body.title,
+      body: body.description,
+      authorTier: viewer.tier,
+    });
+    verdict = decision.verdict;
+    reason = decision.reason;
+    categoriesJson = JSON.stringify(decision.categories);
+    raw = decision.raw;
+    classifier = decision.classifier;
+    if (decision.section !== "EVENT") {
+      verdict = "reject";
+      reason = decision.reason || "内容看起来更像帖子,请改发到「广场」对应板块。";
+    }
+  }
+
+  const status = "PUBLISHED";
+
   await c.env.DB.prepare(
     `INSERT INTO events (id, organizer_id, title, slug, category, format, description,
        cover_url, start_at, end_at, timezone, city, precise_addr, online_url,
        capacity, require_approval, registration_opens_at, registration_closes_at,
-       custom_questions, visibility, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED')`,
+       custom_questions, visibility, status,
+       moderation_verdict, moderation_reason, moderation_categories, moderation_raw,
+       moderation_classifier, moderated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
   )
     .bind(
       id,
@@ -201,16 +278,58 @@ events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
       body.registrationClosesAt ?? null,
       body.customQuestions ? JSON.stringify(body.customQuestions) : null,
       body.visibility ?? "VERIFIED",
+      status,
+      verdict,
+      reason,
+      categoriesJson,
+      raw,
+      classifier,
     )
     .run();
 
-  return c.json({ ok: true, slug });
+  // Notify the organizer about the outcome (in-app always; email for flag/reject).
+  const kind =
+    verdict === "reject"
+      ? "EVENT_REJECTED"
+      : verdict === "flag"
+        ? "EVENT_PENDING_REVIEW"
+        : "EVENT_APPROVED";
+  await c.env.DB.prepare(
+    "INSERT INTO notifications (id, user_id, kind, payload) VALUES (?, ?, ?, ?)",
+  )
+    .bind(
+      newId(),
+      viewer.id,
+      kind,
+      JSON.stringify({ eventSlug: slug, title: body.title, reason, status }),
+    )
+    .run();
+  if ((verdict === "flag" || verdict === "reject") && organizerEmail) {
+    try {
+      await sendModerationStatusEmail(
+        { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
+        {
+          to: organizerEmail,
+          title: body.title,
+          url: `${c.env.FRONTEND_URL}/events/${slug}`,
+          status: verdict === "flag" ? "PENDING_REVIEW" : "REJECTED",
+          targetKind: "EVENT",
+          reason,
+        },
+      );
+    } catch (err) {
+      console.error("event moderation email failed:", err);
+    }
+  }
+
+  return c.json({ ok: true, slug, status });
 });
 
 // PATCH /api/activities/:id
 events.patch("/:id", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
+  const asDraft = c.req.query("draft") === "1";
 
   const event = await c.env.DB.prepare("SELECT * FROM events WHERE id = ?")
     .bind(id)
@@ -225,7 +344,148 @@ events.patch("/:id", requireAuth, async (c) => {
     capacity: number | null; requireApproval: boolean;
     registrationOpensAt: string | null; registrationClosesAt: string | null;
     customQuestions: unknown[]; visibility: string;
+    adminStatus: "DRAFT" | "PUBLISHED";
   }>>();
+
+  const adminStatus =
+    viewer.tier === "ADMIN" && body.adminStatus && ["DRAFT", "PUBLISHED"].includes(body.adminStatus)
+      ? body.adminStatus
+      : null;
+
+  if (adminStatus) {
+    await c.env.DB.prepare(
+      `UPDATE events SET
+         title = COALESCE(?, title),
+         description = COALESCE(?, description),
+         category = COALESCE(?, category),
+         format = COALESCE(?, format),
+         cover_url = ?,
+         start_at = COALESCE(?, start_at),
+         end_at = COALESCE(?, end_at),
+         timezone = COALESCE(?, timezone),
+         city = ?,
+         precise_addr = ?,
+         online_url = ?,
+         capacity = ?,
+         require_approval = COALESCE(?, require_approval),
+         registration_opens_at = ?,
+         registration_closes_at = ?,
+         custom_questions = ?,
+         visibility = COALESCE(?, visibility),
+         status = ?,
+         updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(
+        body.title ?? null,
+        body.description ?? null,
+        body.category ?? null,
+        body.format ?? null,
+        body.coverUrl ?? null,
+        body.startAt ?? null,
+        body.endAt ?? null,
+        body.timezone ?? null,
+        body.city ?? null,
+        body.preciseAddr ?? null,
+        body.onlineUrl ?? null,
+        body.capacity ?? null,
+        body.requireApproval !== undefined ? (body.requireApproval ? 1 : 0) : null,
+        body.registrationOpensAt ?? null,
+        body.registrationClosesAt ?? null,
+        body.customQuestions ? JSON.stringify(body.customQuestions) : null,
+        body.visibility ?? null,
+        adminStatus,
+        id,
+      )
+      .run();
+    return c.json({ ok: true, status: adminStatus });
+  }
+
+  if (asDraft) {
+    await c.env.DB.prepare(
+      `UPDATE events SET
+         title = COALESCE(?, title),
+         description = COALESCE(?, description),
+         category = COALESCE(?, category),
+         format = COALESCE(?, format),
+         cover_url = ?,
+         start_at = COALESCE(?, start_at),
+         end_at = COALESCE(?, end_at),
+         timezone = COALESCE(?, timezone),
+         city = ?,
+         precise_addr = ?,
+         online_url = ?,
+         capacity = ?,
+         require_approval = COALESCE(?, require_approval),
+         registration_opens_at = ?,
+         registration_closes_at = ?,
+         custom_questions = ?,
+         visibility = COALESCE(?, visibility),
+         status = 'DRAFT',
+         updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(
+        body.title ?? null,
+        body.description ?? null,
+        body.category ?? null,
+        body.format ?? null,
+        body.coverUrl ?? null,
+        body.startAt ?? null,
+        body.endAt ?? null,
+        body.timezone ?? null,
+        body.city ?? null,
+        body.preciseAddr ?? null,
+        body.onlineUrl ?? null,
+        body.capacity ?? null,
+        body.requireApproval !== undefined ? (body.requireApproval ? 1 : 0) : null,
+        body.registrationOpensAt ?? null,
+        body.registrationClosesAt ?? null,
+        body.customQuestions ? JSON.stringify(body.customQuestions) : null,
+        body.visibility ?? null,
+        id,
+      )
+      .run();
+    return c.json({ ok: true, status: "DRAFT" });
+  }
+
+  // Re-run moderation if the user edited title or description.
+  const nextTitle = body.title ?? event.title;
+  const nextDescription = body.description ?? event.description;
+  const contentChanged = body.description !== undefined;
+  const descriptionChanged = body.description !== undefined;
+  let modVerdict: string | null = event.moderation_verdict;
+  let modReason: string | null = event.moderation_reason;
+  let modCategories: string | null = event.moderation_categories;
+  let modRaw: string | null = event.moderation_raw;
+  let modClassifier: string | null = event.moderation_classifier;
+  let modeRanAt: string | null = event.moderated_at;
+
+  if (contentChanged) {
+    if (containsBlockedTerms(`${nextTitle}\n${nextDescription}`)) {
+      return c.json({ error: "内容包含被屏蔽的词汇" }, 400);
+    }
+    const decision = await moderateAndClassify(c.env, {
+      kind: "EVENT",
+      title: nextTitle,
+      body: nextDescription,
+      authorTier: viewer.tier,
+    });
+    if (decision.verdict === "reject") {
+      return c.json({ error: decision.reason || "内容不符合社区规范" }, 400);
+    }
+    if (descriptionChanged && decision.section !== "EVENT") {
+      return c.json({
+        error: "修改后的内容不再像活动,请改为帖子发布",
+      }, 400);
+    }
+    modVerdict = decision.verdict;
+    modReason = decision.reason;
+    modCategories = JSON.stringify(decision.categories);
+    modRaw = decision.raw;
+    modClassifier = decision.classifier;
+    modeRanAt = new Date().toISOString();
+  }
 
   await c.env.DB.prepare(
     `UPDATE events SET
@@ -246,6 +506,13 @@ events.patch("/:id", requireAuth, async (c) => {
        registration_closes_at = ?,
        custom_questions = ?,
        visibility = COALESCE(?, visibility),
+       status = COALESCE(?, status),
+       moderation_verdict = ?,
+       moderation_reason = ?,
+       moderation_categories = ?,
+       moderation_raw = ?,
+       moderation_classifier = ?,
+       moderated_at = ?,
        updated_at = datetime('now')
      WHERE id = ?`,
   )
@@ -267,6 +534,13 @@ events.patch("/:id", requireAuth, async (c) => {
       body.registrationClosesAt ?? null,
       body.customQuestions ? JSON.stringify(body.customQuestions) : null,
       body.visibility ?? null,
+      event.status === "DRAFT" ? "PUBLISHED" : null,
+      modVerdict,
+      modReason,
+      modCategories,
+      modRaw,
+      modClassifier,
+      modeRanAt,
       id,
     )
     .run();
@@ -506,7 +780,7 @@ events.get("/:id/comments", optionalAuth, async (c) => {
   return c.json({ comments: rows.results });
 });
 
-// POST /api/activities/:id/comments
+// POST /api/activities/:id/comments — LLM-moderated
 events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
@@ -519,15 +793,30 @@ events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => 
   if (!event) return c.json({ error: "活动不存在" }, 404);
 
   const body = await c.req.json<{ body: string; parentId?: string }>();
-  if (!body.body?.trim()) return c.json({ error: "评论内容不能为空" }, 400);
+  const text = (body.body ?? "").trim();
+  if (!text) return c.json({ error: "评论内容不能为空" }, 400);
+  if (text.length > 4000) return c.json({ error: "评论过长" }, 400);
+
+  if (containsBlockedTerms(text)) {
+    return c.json({ error: "评论包含被屏蔽的词汇" }, 400);
+  }
+  const decision = await moderateAndClassify(c.env, {
+    kind: "COMMENT",
+    body: text,
+    authorTier: viewer.tier,
+  });
+  if (decision.verdict === "reject") {
+    return c.json({ error: decision.reason || "评论不符合社区规范" }, 400);
+  }
+  const hidden = 0;
 
   await c.env.DB.prepare(
-    "INSERT INTO comments (id, event_id, author_id, body, parent_id) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO comments (id, event_id, post_id, author_id, body, parent_id, is_hidden, hidden_reason, is_bot) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0)",
   )
-    .bind(newId(), id, viewer.id, body.body.trim(), body.parentId ?? null)
+    .bind(newId(), id, viewer.id, text, body.parentId ?? null, hidden, hidden ? decision.reason : null)
     .run();
 
-  return c.json({ ok: true });
+  return c.json({ ok: true, hidden: !!hidden });
 });
 
 // PATCH /api/comments/:commentId/hide
@@ -560,13 +849,29 @@ events.patch("/comments/:commentId/hide", requireAuth, async (c) => {
 
 // ---- Visibility helper ----
 
-function buildVisibilityCondition(viewer: { id: string; tier: string } | null): string {
-  if (!viewer) return "e.visibility = 'PUBLIC'";
+/**
+ * Parameterized visibility clause for events. Returns { sql, params } so the
+ * caller splices both into the larger query — avoids string-concatenating
+ * viewer.id, which was a SQL-injection-pattern even if viewer.id is from a
+ * trusted JWT today.
+ */
+function buildVisibilityClause(
+  viewer: { id: string; tier: string } | null,
+): { sql: string; params: unknown[] } {
+  if (!viewer) return { sql: "e.visibility = 'PUBLIC'", params: [] };
   const rank: Record<string, number> = { GUEST: 0, UNVERIFIED: 1, VERIFIED: 2, TRUSTED: 3, ADMIN: 4 };
   const r = rank[viewer.tier] ?? 0;
-  if (r >= 3) return "(e.visibility IN ('PUBLIC','VERIFIED','TRUSTED') OR e.organizer_id = '" + viewer.id + "')";
-  if (r >= 2) return "(e.visibility IN ('PUBLIC','VERIFIED') OR e.organizer_id = '" + viewer.id + "')";
-  return "e.visibility = 'PUBLIC'";
+  if (r >= 3)
+    return {
+      sql: "(e.visibility IN ('PUBLIC','VERIFIED','TRUSTED') OR e.organizer_id = ?)",
+      params: [viewer.id],
+    };
+  if (r >= 2)
+    return {
+      sql: "(e.visibility IN ('PUBLIC','VERIFIED') OR e.organizer_id = ?)",
+      params: [viewer.id],
+    };
+  return { sql: "e.visibility = 'PUBLIC'", params: [] };
 }
 
 export default events;

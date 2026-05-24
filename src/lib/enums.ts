@@ -112,5 +112,49 @@ export const ReportTarget = {
   USER: "USER",
   EVENT: "EVENT",
   COMMENT: "COMMENT",
+  POST: "POST",
 } as const;
 export type ReportTarget = (typeof ReportTarget)[keyof typeof ReportTarget];
+
+// ============================================================
+// 帖子（POST 普通 / MEDICAL 医疗信息 / RESOURCE 资源分享）
+// ============================================================
+
+export const PostSection = {
+  POST: "POST",
+  MEDICAL: "MEDICAL",
+  RESOURCE: "RESOURCE",
+} as const;
+export type PostSection = (typeof PostSection)[keyof typeof PostSection];
+
+export const POST_SECTION_LABEL: Record<PostSection, string> = {
+  POST: "动态",
+  MEDICAL: "医疗信息",
+  RESOURCE: "资源分享",
+};
+
+export const PostStatus = {
+  PENDING_REVIEW: "PENDING_REVIEW",
+  PUBLISHED: "PUBLISHED",
+  REJECTED: "REJECTED",
+  HIDDEN: "HIDDEN",
+} as const;
+export type PostStatus = (typeof PostStatus)[keyof typeof PostStatus];
+
+export const POST_STATUS_LABEL: Record<PostStatus, string> = {
+  PENDING_REVIEW: "等待人工复核",
+  PUBLISHED: "已发布",
+  REJECTED: "已拒绝",
+  HIDDEN: "已隐藏",
+};
+
+export const ResourceKind = {
+  OFFER: "OFFER",
+  REQUEST: "REQUEST",
+} as const;
+export type ResourceKind = (typeof ResourceKind)[keyof typeof ResourceKind];
+
+export const RESOURCE_KIND_LABEL: Record<ResourceKind, string> = {
+  OFFER: "我可以提供",
+  REQUEST: "我想求助",
+};

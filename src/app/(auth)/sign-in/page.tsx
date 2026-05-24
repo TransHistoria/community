@@ -1,6 +1,6 @@
-import SignInPageClient from "./SignInPageClient";
+"use client";
 
-export const metadata = { title: "登录" };
+import SignInPageClient from "./SignInPageClient";
 
 export default function SignInPage() {
   return <SignInPageClient />;

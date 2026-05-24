@@ -21,6 +21,7 @@ type ApiEvent = {
   id: string;
   slug: string;
   title: string;
+  status: string;
   description: string;
   category: string;
   format: string;
@@ -103,6 +104,7 @@ export default function EditEventPageClient() {
           registrationOpensAt: event.registration_opens_at ?? null,
           registrationClosesAt: event.registration_closes_at ?? null,
           visibility: formVisibility,
+          status: event.status,
           customQuestions: questions,
         }}
       />
