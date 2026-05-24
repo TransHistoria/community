@@ -71,6 +71,7 @@ function EditPostInner() {
           title: post.title,
           body: post.body,
           visibility: post.visibility,
+          status: post.status,
         }}
       />
     </div>

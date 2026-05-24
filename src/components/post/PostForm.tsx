@@ -18,6 +18,7 @@ type Initial = Partial<{
   title: string;
   body: string;
   visibility: string;
+  status: string;
 }>;
 
 export function PostForm({
@@ -36,6 +37,7 @@ export function PostForm({
   const [title, setTitle] = React.useState(initial?.title ?? "");
   const [body, setBody] = React.useState(initial?.body ?? "");
   const [visibility, setVisibility] = React.useState(initial?.visibility ?? "VERIFIED");
+  const isDraftEdit = mode === "edit" && initial?.status === "DRAFT";
   const [submitting, setSubmitting] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
 
@@ -204,7 +206,7 @@ export function PostForm({
           </Button>
         ) : null}
         <Button type="submit" disabled={submitting}>
-          {submitting ? "提交中…" : mode === "create" ? "发布" : "保存"}
+          {submitting ? "提交中…" : mode === "create" ? "发布" : isDraftEdit ? "发布草稿" : "保存"}
         </Button>
       </div>
     </form>

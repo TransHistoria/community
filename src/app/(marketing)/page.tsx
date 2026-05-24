@@ -24,6 +24,7 @@ import MeContactRequestsPage from "../(app)/me/contact-requests/page";
 import MeRegistrationsPage from "../(app)/me/registrations/page";
 import MeInvitesPage from "../(app)/me/invites/page";
 import MeBlocksPage from "../(app)/me/blocks/page";
+import MeDraftsPage from "../(app)/me/drafts/page";
 import NotificationsPage from "../(app)/notifications/page";
 import PostsPage from "../(app)/posts/page";
 import NewPostPage from "../(app)/posts/new/page";
@@ -79,6 +80,7 @@ function HomePageInner() {
   const isMeRegistrations = queryRoutePath === "/me/registrations";
   const isMeInvites = queryRoutePath === "/me/invites";
   const isMeBlocks = queryRoutePath === "/me/blocks";
+  const isMeDrafts = queryRoutePath === "/me/drafts";
   const isNotifications = queryRoutePath === "/notifications";
   const isAdminIndex = queryRoutePath === "/admin";
   const isAdminApplications = queryRoutePath === "/admin/applications";
@@ -152,6 +154,7 @@ function HomePageInner() {
   if (isMeRegistrations) return <MeRegistrationsPage />;
   if (isMeInvites) return <MeInvitesPage />;
   if (isMeBlocks) return <MeBlocksPage />;
+  if (isMeDrafts) return <MeDraftsPage />;
   if (isNotifications) return <NotificationsPage />;
   if (isAdminIndex || isAdminApplications) {
     return (
