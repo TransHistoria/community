@@ -13,7 +13,9 @@
     "dev:worker": "wrangler dev",
     "setup": "wrangler d1 migrations apply transcommunity --remote",
     "deploy": "pnpm run setup && wrangler deploy",
-    "test": "vitest",
+    "test": "pnpm run test:api",
+    "test:api": "bash -lc 'set -euo pipefail; cd worker; rm -rf .wrangler .dev.vars; cat > .dev.vars <<\"EOF\"\nJWT_SECRET=ci-test-secret-do-not-use-in-production\nADMIN_EMAILS=admin@ci.test\nCREATE_ADMIN=ci-create-admin-secret\nEOF\nW=\"npx -y node@22 ../node_modules/wrangler/bin/wrangler.js\"; $W d1 migrations apply transcommunity --local; $W d1 execute transcommunity --local --file test/seed.sql; $W dev --port 8787 >/tmp/transcommunity-wrangler.log 2>&1 & WRANGLER_PID=$!; trap \"kill $WRANGLER_PID\" EXIT; sleep 2; API_BASE=http://localhost:8787 node test/api.test.mjs'",
+    "test:unit": "vitest",
     "test:e2e": "playwright test"
   },
   "dependencies": {

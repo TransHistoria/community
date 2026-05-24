@@ -18,11 +18,11 @@
 |---|---|---|
 | 前端类型检查 | ✅ 通过 | `pnpm typecheck` 通过 |
 | Worker 类型检查 | ✅ 通过 | `pnpm typecheck:worker` 通过 |
-| Lint | ⚠️ 通过但有警告 | `next lint` 已弃用；2 条 hook dependency warning |
-| Frontend build | ⚠️ 环境受限失败 | `next/font/google` 拉取 Google Fonts 失败 |
-| Vitest | ❌ 配置不匹配 | `worker/test/api.test.mjs` 是 Node harness，不是 Vitest suite |
+| Lint | ✅ 通过 | 无业务 warning；仍有 `next lint` 弃用提醒 |
+| Frontend build | ✅ 通过 | `pnpm frontend` 可完成 build/export |
+| 集成测试 | ✅ 通过 | 按 API workflow 路径本地跑通（97/97） |
 | 文档准确性 | ✅ 本次已更新 | README/HANDOVER 已按 Worker/D1 主路径改写 |
-| 安全关键流 | ⚠️ 有缺口 | 邀请码预校验与实际账号创建/提权未闭环 |
+| 安全关键流 | ✅ 已补齐关键闭环 | 邀请码预校验会落库为 claim，并在 `/api/auth/verify` 消费后提权/计数 |
 
 ---
 
@@ -227,46 +227,34 @@ worker/
 
 ## 5. 代码审阅发现
 
-### P0 / 必须优先处理
+### P0 / 必须优先处理（已完成）
 
-#### 1) 邀请码准入没有形成闭环
+#### 1) 邀请码准入闭环（已修复）
 
-**现象**：`POST /api/auth/verify-invite` 只验证邀请码存在、次数未满、未过期，并写入发行者的一条 `INVITE_PRECHECK` notification。`POST /api/auth/verify` 创建新用户时只看 `ADMIN_EMAILS` 和 approved application，不读取 `INVITE_PRECHECK`，也不更新 `invite_codes.used_count`。
+已新增 `worker/migrations/0005_invite_claims.sql`，并将流程改为：
 
-**影响**：
+- `POST /api/auth/verify-invite`：校验邀请码后写入 `invite_claims`（按邮箱保留最新未消费 claim），同时保留发行者通知。
+- `POST /api/auth/verify`：消费 claim（原子增加 `invite_codes.used_count`），并在新建/既有 `UNVERIFIED|GUEST` 用户上设置 `tier='VERIFIED'` 与 `invited_by_id`。
 
-- 邀请码不会真正消费。
-- 受邀邮箱通过 magic-link 登录后仍可能只是 `UNVERIFIED`。
-- `used_count`/`max_uses` 无法发挥准入限制作用。
-- 测试注释提到“后续 magic-link verify 才消费”，但实现未看到对应逻辑。
+配套集成测试已覆盖“预校验不消费、verify 后消费并提权”。
 
-**建议**：新增明确的数据结构，如 `invite_claims(email, code, expires_at, consumed_at)`，或在 `magic_tokens` 表加 `invite_code`。`verify-invite` 创建 claim；`send-link`/`verify` 绑定并原子消费；成功创建用户时设置 `tier='VERIFIED'`、`invited_by_id`，并 `UPDATE invite_codes SET used_count = used_count + 1`。
+#### 2) 测试入口不一致（已修复）
 
-#### 2) 当前测试入口误导
+`package.json` 已调整：
 
-`package.json` 的 `test` 是 `vitest`，但 `worker/test/api.test.mjs` 是自行实现的 Node endpoint harness，没有 `describe/it/test`，所以 `pnpm exec vitest run` 会失败。CI 的正确做法是启动 wrangler dev 后运行 `node test/api.test.mjs`。
-
-**建议**：二选一：
-
-- 把 `pnpm test` 改为完整 Worker integration workflow 的脚本；或
-- 把 endpoint harness 排除出 Vitest，并新增真正的 Vitest 单元测试。
+- `pnpm test` → `pnpm run test:api`
+- `pnpm run test:api` → `cd worker && node test/api.test.mjs`
+- `pnpm run test:unit` 保留 Vitest 入口用于后续单测
 
 ### P1 / 高优先级
 
-#### 3) 静态前端 build 依赖 Google Fonts 网络
+#### 3) 静态前端 build 稳定性（当前已通过）
 
-根布局使用 `next/font/google` 加载 Inter 和 Source Serif 4。当前环境下 `pnpm frontend` 因无法拉取 Google Fonts 失败。
+本次复检环境中 `pnpm frontend` 已可稳定通过。若后续部署环境受网络限制，仍建议评估改为 `next/font/local` 以降低外部依赖。
 
-**建议**：把字体改为本地 vendored font（`next/font/local`），或在 CI/build 环境保证 Google Fonts 可访问并缓存。
+#### 4) `next lint` 弃用与 hook warning（warning 已修复）
 
-#### 4) `next lint` 已弃用，且有 hook dependency warnings
-
-`pnpm lint` 通过但输出：
-
-- `src/app/(app)/events/[slug]/CommentSection.tsx`：`loadComments` 缺失依赖。
-- `src/app/(app)/events/[slug]/manage/ManageEventPageClient.tsx`：`loadData` 缺失依赖。
-
-**建议**：用 `useCallback` 包裹 loader 并加入依赖，或在明确不会变化时加局部 eslint 注释。中期按 Next 提示迁移到 ESLint CLI。
+`CommentSection.tsx` 与 `ManageEventPageClient.tsx` 已改为 `useCallback + useEffect` 依赖闭环，当前 lint 无业务 warning。剩余事项仅为 Next 16 前迁移到 ESLint CLI。
 
 #### 5) 文件上传安全弱于产品承诺
 
@@ -349,16 +337,17 @@ pnpm typecheck:worker
 # PASS
 
 pnpm lint
-# PASS with warnings:
-# - next lint deprecated
-# - CommentSection.tsx missing loadComments dependency
-# - ManageEventPageClient.tsx missing loadData dependency
-
-pnpm exec vitest run
-# FAIL: worker/test/api.test.mjs has no Vitest suite
+# PASS（仅 next lint 弃用提醒）
 
 pnpm frontend
-# FAIL in this environment: next/font/google could not fetch Inter / Source Serif 4
+# PASS
+
+# API integration workflow（与 .github/workflows/api-test.yml 一致）
+# - wrangler d1 migrations apply --local
+# - wrangler d1 execute --local --file worker/test/seed.sql
+# - wrangler dev --port 8787
+# - API_BASE=http://localhost:8787 node worker/test/api.test.mjs
+# PASS: 97/97
 ```
 
 ---
@@ -439,12 +428,12 @@ API_BASE=http://localhost:8787 node test/api.test.mjs
 - [ ] 设置 `NEXT_PUBLIC_API_FALLBACK_URL`（可选）。
 - [ ] GitHub Pages 子路径部署时设置 `NEXT_PUBLIC_BASE_PATH=/community`，或增加CNAME以部署至指定域名。
 - [ ] 设置 Turnstile site key。
-- [ ] 解决 Google Fonts build 依赖，或确保 CI 可访问。
+- [x] 当前环境可完成 `pnpm frontend`；若后续网络受限，建议改本地字体。
 - [ ] 跑 `pnpm frontend` 并检查 `frontend-artifact`。
 
 ### 8.3 安全上线前
 
-- [ ] 修复邀请码消费/提权闭环。
+- [x] 修复邀请码消费/提权闭环（已落地 `invite_claims` + verify 消费流程）。
 - [ ] 增加基础 rate limit。
 - [ ] 明确 JWT TTL 与二次验证策略。
 - [ ] 检查所有 markdown/用户输入渲染路径。
@@ -458,9 +447,9 @@ API_BASE=http://localhost:8787 node test/api.test.mjs
 
 ### 第 1 阶段：安全闭环
 
-1. 修复邀请码 claim/consume。
+1. （已完成）修复邀请码 claim/consume。
 2. 给申请、登录、邀请码、举报、联系方式申请增加 rate limit。
-3. 修复 lint hook warnings。
+3. （已完成）修复 lint hook warnings。
 4. 明确 JWT TTL、token version 与账号禁用后的 token 失效策略。
 
 ### 第 2 阶段：工程卫生

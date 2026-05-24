@@ -110,11 +110,13 @@ NEXT_PUBLIC_API_URL=http://localhost:8787 pnpm dev
 | 命令 | 说明 |
 |---|---|
 | `pnpm dev` | 启动 Next 前端开发服务器 |
-| `pnpm frontend` | `next build` + 生成 GitHub Pages artifact（当前会联网拉取 next/font 的 Google Fonts） |
+| `pnpm frontend` | `next build` + 生成 GitHub Pages artifact |
 | `pnpm typecheck` | 前端 TypeScript 检查 |
 | `pnpm typecheck:worker` | Worker TypeScript 检查 |
 | `pnpm lint` | `next lint`（Next 15 已提示该命令将在 Next 16 移除） |
-| `pnpm exec vitest run` | 当前会失败：`worker/test/api.test.mjs` 不是 Vitest suite |
+| `pnpm test` | 运行自包含的 Worker endpoint 集成测试（自动本地迁移/seed/启动 wrangler/执行测试） |
+| `pnpm run test:api` | 同 `pnpm test` |
+| `pnpm run test:unit` | Vitest 单元测试入口（当前仓库暂无稳定单测套件） |
 | `cd worker && ../node_modules/.bin/wrangler d1 migrations apply transcommunity --local` | 应用本地 D1 migrations |
 | `cd worker && ../node_modules/.bin/wrangler dev --port 8787` | 本地运行 Worker API |
 | `cd worker && node test/api.test.mjs` | 对运行中的 Worker 执行 endpoint 集成测试 |
@@ -178,12 +180,10 @@ Cloudflare 绑定：
 
 更完整的审阅记录见 [`HANDOVER.md`](HANDOVER.md)。当前最值得优先处理的问题：
 
-1. **邀请码只预校验，未在 magic-link 登录链路中消费，也未把受邀新用户提升为 `VERIFIED`**；`verify-invite` 写入 `INVITE_PRECHECK` 通知，但 `/api/auth/verify` 没读取它。
-2. **文档/历史代码曾混用 Prisma/NextAuth 叙述**；当前 README/HANDOVER 已按 Worker/D1 主路径重写，但 `prisma/` 与脚本仍需决定保留还是移除。
-3. **前端 build 依赖 Google Fonts 网络访问**；离线/受限 CI 会因 `next/font/google` 拉取失败而构建失败。
-4. **`pnpm test` / Vitest 配置不匹配**；真实 API 测试应按 workflow 使用 `node worker/test/api.test.mjs`。
-5. **文件上传校验弱于旧文档承诺**：当前仅检查 MIME type/大小，未做 magic-byte、重压缩、EXIF 抹除。
-6. **Next lint 命令已弃用且有 2 条 hook dependency warning**。
+1. **文件上传校验仍偏弱**：当前仅检查 MIME type/大小，未做 magic-byte、重压缩、EXIF 抹除。
+2. **`next lint` 命令弃用提醒仍存在**：当前 lint 已无业务 warning，但 Next 16 前需迁移到 ESLint CLI。
+3. **历史 Prisma/NextAuth 目录仍保留**：`prisma/` 与旧脚本是否继续保留仍需团队决策。
+4. **根目录和 `worker/` 存在两份 wrangler 配置**：部署入口需保持一致，避免路径差异导致行为不一致。
 
 ## 部署概览
 

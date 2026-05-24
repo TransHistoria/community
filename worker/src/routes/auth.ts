@@ -2,6 +2,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
+import type { D1Database } from "@cloudflare/workers-types";
 import type { Env, Variables } from "@/types";
 import { createMagicToken, verifyMagicToken } from "@/auth/magic";
 import { buildOtpAuthUrl, generateTotpSecret, verifyTotpCode } from "@/auth/totp";
@@ -46,6 +47,50 @@ async function issueJwt(env: Env, user: UserRow) {
       avatarUrl: user.avatar_url,
     },
   };
+}
+
+type ConsumedInvite = {
+  code: string;
+  issuerId: string;
+};
+
+async function consumeInviteClaimForEmail(db: D1Database, email: string): Promise<ConsumedInvite | null> {
+  const claim = await db.prepare(
+    `SELECT ic.id, ic.code, ic.issuer_id
+     FROM invite_claims ic
+     JOIN invite_codes i ON i.code = ic.code
+     WHERE ic.email = ?
+       AND ic.consumed_at IS NULL
+       AND (ic.expires_at IS NULL OR datetime(ic.expires_at) > datetime('now'))
+       AND (i.expires_at IS NULL OR datetime(i.expires_at) > datetime('now'))
+       AND i.used_count < i.max_uses
+     ORDER BY ic.created_at DESC
+     LIMIT 1`,
+  )
+    .bind(email)
+    .first<{ id: string; code: string; issuer_id: string }>();
+
+  if (!claim) return null;
+
+  const updated = await db.prepare(
+    `UPDATE invite_codes
+     SET used_count = used_count + 1
+     WHERE code = ?
+       AND used_count < max_uses
+       AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))`,
+  )
+    .bind(claim.code)
+    .run();
+
+  if ((updated.meta?.changes ?? 0) < 1) return null;
+
+  await db.prepare(
+    "UPDATE invite_claims SET consumed_at = datetime('now') WHERE id = ?",
+  )
+    .bind(claim.id)
+    .run();
+
+  return { code: claim.code, issuerId: claim.issuer_id };
 }
 
 // POST /api/auth/send-link — send a magic link to the given email
@@ -442,6 +487,8 @@ auth.post("/verify", async (c) => {
   const email = await verifyMagicToken(c.env.DB, token);
   if (!email) return c.json({ error: "链接无效或已过期" }, 400);
 
+  const consumedInvite = await consumeInviteClaimForEmail(c.env.DB, email);
+
   // Find or create user
   let user = await c.env.DB.prepare(
     "SELECT * FROM users WHERE email = ?",
@@ -460,6 +507,7 @@ auth.post("/verify", async (c) => {
 
     let tier = "UNVERIFIED";
     let applicationId: string | null = null;
+    let invitedById: string | null = consumedInvite?.issuerId ?? null;
 
     if (isAdmin) {
       tier = "ADMIN";
@@ -474,14 +522,17 @@ auth.post("/verify", async (c) => {
         tier = "VERIFIED";
         applicationId = app.id;
       }
+      if (consumedInvite) {
+        tier = "VERIFIED";
+      }
     }
 
     const userId = newId();
     await c.env.DB.prepare(
-      `INSERT INTO users (id, email, handle, display_name, tier, status, email_verified_at, application_id)
-       VALUES (?, ?, ?, ?, ?, 'ACTIVE', datetime('now'), ?)`,
+      `INSERT INTO users (id, email, handle, display_name, tier, status, email_verified_at, application_id, invited_by_id)
+       VALUES (?, ?, ?, ?, ?, 'ACTIVE', datetime('now'), ?, ?)`,
     )
-      .bind(userId, email, handle, handle, tier, applicationId)
+      .bind(userId, email, handle, handle, tier, applicationId, invitedById)
       .run();
 
     user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?")
@@ -497,20 +548,42 @@ auth.post("/verify", async (c) => {
       .bind(user.id)
       .run();
 
-    // If UNVERIFIED, check for approved application
+    // If UNVERIFIED/GUEST, check for approved application and consumed invite
     if (user.tier === "UNVERIFIED" || user.tier === "GUEST") {
+      let shouldUpdateTier = false;
+      let nextApplicationId = user.application_id;
+      let nextInvitedById = user.invited_by_id;
+
       const app = await c.env.DB.prepare(
         "SELECT id FROM applications WHERE email = ? AND status = 'APPROVED' ORDER BY reviewed_at DESC LIMIT 1",
       )
         .bind(email)
         .first<{ id: string }>();
       if (app) {
+        shouldUpdateTier = true;
+        nextApplicationId = app.id;
+      }
+      if (consumedInvite) {
+        shouldUpdateTier = true;
+        if (!nextInvitedById) nextInvitedById = consumedInvite.issuerId;
+      }
+      if (shouldUpdateTier) {
         await c.env.DB.prepare(
-          "UPDATE users SET tier = 'VERIFIED', application_id = ? WHERE id = ?",
+          `UPDATE users
+           SET tier = 'VERIFIED',
+               application_id = ?,
+               invited_by_id = ?,
+               updated_at = datetime('now')
+           WHERE id = ?`,
         )
-          .bind(app.id, user.id)
+          .bind(nextApplicationId, nextInvitedById, user.id)
           .run();
-        user = { ...user, tier: "VERIFIED", application_id: app.id };
+        user = {
+          ...user,
+          tier: "VERIFIED",
+          application_id: nextApplicationId,
+          invited_by_id: nextInvitedById,
+        };
       }
     }
   }
@@ -584,27 +657,33 @@ auth.post("/verify-invite", async (c) => {
   const code = rawCode.toUpperCase();
 
   const inv = await c.env.DB.prepare(
-    "SELECT * FROM invite_codes WHERE code = ?",
-  ).bind(code).first<{ code: string; max_uses: number; used_count: number; expires_at: string | null }>();
+    "SELECT code, issuer_id, max_uses, used_count, expires_at FROM invite_codes WHERE code = ?",
+  ).bind(code).first<{ code: string; issuer_id: string; max_uses: number; used_count: number; expires_at: string | null }>();
 
   if (!inv) return c.json({ error: "邀请码无效" }, 400);
   if (inv.used_count >= inv.max_uses) return c.json({ error: "邀请码已用完" }, 400);
   if (inv.expires_at && new Date(inv.expires_at) < new Date())
     return c.json({ error: "邀请码已过期" }, 400);
 
-  // Store invite+email association temporarily by recording a notification
-  const issuerRow = await c.env.DB.prepare(
-    "SELECT id FROM users WHERE id = (SELECT issuer_id FROM invite_codes WHERE code = ?)",
-  ).bind(code).first<{ id: string }>();
+  await c.env.DB.prepare(
+    "DELETE FROM invite_claims WHERE email = ? AND consumed_at IS NULL",
+  )
+    .bind(email)
+    .run();
 
-  if (issuerRow) {
-    await c.env.DB.prepare(
-      `INSERT INTO notifications (id, user_id, kind, payload)
-       VALUES (?, ?, 'INVITE_PRECHECK', ?)`,
-    )
-      .bind(newId(), issuerRow.id, JSON.stringify({ email, code }))
-      .run();
-  }
+  await c.env.DB.prepare(
+    `INSERT INTO invite_claims (id, email, code, issuer_id, expires_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(newId(), email, code, inv.issuer_id, inv.expires_at)
+    .run();
+
+  await c.env.DB.prepare(
+    `INSERT INTO notifications (id, user_id, kind, payload)
+     VALUES (?, ?, 'INVITE_PRECHECK', ?)`,
+  )
+    .bind(newId(), inv.issuer_id, JSON.stringify({ email, code }))
+    .run();
 
   return c.json({ ok: true });
 });

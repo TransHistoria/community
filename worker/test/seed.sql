@@ -17,7 +17,8 @@ INSERT INTO magic_tokens (id, email, token, expires_at, used)
 VALUES
   ('mt-admin',    'admin@ci.test',    'ci-token-admin',    datetime('now', '+1 hour'), 0),
   ('mt-verified', 'verified@ci.test', 'ci-token-verified', datetime('now', '+1 hour'), 0),
-  ('mt-user2',    'user2@ci.test',    'ci-token-user2',    datetime('now', '+1 hour'), 0);
+  ('mt-user2',    'user2@ci.test',    'ci-token-user2',    datetime('now', '+1 hour'), 0),
+  ('mt-invited',  'invited@ci.test',  'ci-token-invited',  datetime('now', '+1 hour'), 0);
 
 -- ── Pre-existing invite code (so verify-invite can be tested before POST /invites) ──
 
