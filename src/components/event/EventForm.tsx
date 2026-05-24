@@ -98,6 +98,7 @@ type InitialState = Partial<
   registrationOpensAt?: Date | string | null;
   registrationClosesAt?: Date | string | null;
   visibility?: "PUBLIC" | "VERIFIED" | "TRUSTED";
+  status?: string;
   customQuestions?: Question[];
 };
 
@@ -113,6 +114,7 @@ export function EventForm({
   const router = useRouter();
   const { toast } = useToast();
   const [pending, setPending] = React.useState(false);
+  const isDraftEdit = mode === "edit" && initial?.status === "DRAFT";
   const [form, setForm] = React.useState<FormState>(() => ({
     ...DEFAULT,
     ...(initial as Partial<FormState>),
@@ -128,7 +130,7 @@ export function EventForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent, asDraft = false) {
     e.preventDefault();
     const payload: EventInput = {
       title: form.title.trim(),
@@ -165,13 +167,20 @@ export function EventForm({
     setPending(true);
     const res =
       mode === "create"
-        ? await api.events.create(parsed.data)
-        : await api.events.update(eventId!, parsed.data);
+        ? await api.events.create(parsed.data, asDraft)
+        : await api.events.update(eventId!, parsed.data, asDraft);
     setPending(false);
     if (res.ok) {
-      toast({ title: mode === "create" ? "已发布" : "已保存", variant: "success" });
+      toast({
+        title: asDraft ? "已保存草稿" : mode === "create" ? "已发布" : "已保存",
+        variant: "success",
+      });
       const slug = (res as { slug?: string }).slug;
-      router.push(slug ? toQueryRoute(`/events/${slug}`) : toQueryRoute("/events"));
+      if (asDraft) {
+        router.push(slug ? toQueryRoute(`/events/${slug}/edit`) : toQueryRoute("/events"));
+      } else {
+        router.push(slug ? toQueryRoute(`/events/${slug}`) : toQueryRoute("/events"));
+      }
     } else {
       toast({ title: "失败", variant: "danger" });
     }
@@ -207,7 +216,7 @@ export function EventForm({
   const isHybrid = form.format === "HYBRID";
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form onSubmit={(e) => onSubmit(e, false)} className="space-y-6">
       <Card>
         <CardContent className="pt-6 space-y-5">
           <div className="space-y-2">
@@ -503,8 +512,19 @@ export function EventForm({
         <Button type="button" variant="outline" onClick={() => router.back()}>
           取消
         </Button>
+        {mode === "create" || isDraftEdit ? (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={pending}
+            size="lg"
+            onClick={(e) => onSubmit(e as unknown as React.FormEvent, true)}
+          >
+            {pending ? "保存中..." : mode === "create" ? "存为草稿" : "保存"}
+          </Button>
+        ) : null}
         <Button type="submit" disabled={pending} size="lg">
-          {pending ? "保存中..." : mode === "create" ? "发布活动" : "保存修改"}
+          {pending ? "保存中..." : mode === "create" ? "发布活动" : isDraftEdit ? "发布" : "保存修改"}
         </Button>
       </div>
     </form>

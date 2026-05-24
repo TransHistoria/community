@@ -105,9 +105,13 @@ export function PostForm({
           router.push(toQueryRoute(`/posts/${res.id}`));
         }
       } else if (postId) {
-        await api.posts.update(postId, payload);
-        toast({ title: "已保存", variant: "success" });
-        router.push(toQueryRoute(`/posts/${postId}`));
+        await api.posts.update(postId, payload, asDraft);
+        toast({ title: asDraft ? "草稿已保存" : "已保存", variant: "success" });
+        if (asDraft) {
+          router.push(toQueryRoute(`/posts/${postId}/edit`));
+        } else {
+          router.push(toQueryRoute(`/posts/${postId}`));
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "提交失败";
@@ -204,9 +208,18 @@ export function PostForm({
           >
             存为草稿
           </Button>
+        ) : isDraftEdit ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting || !title.trim() || !body.trim()}
+            onClick={(e) => submit(e as unknown as React.FormEvent, true)}
+          >
+            保存草稿
+          </Button>
         ) : null}
         <Button type="submit" disabled={submitting}>
-          {submitting ? "提交中…" : mode === "create" ? "发布" : isDraftEdit ? "发布草稿" : "保存"}
+          {submitting ? "提交中…" : mode === "create" ? "发布" : isDraftEdit ? "发布" : "保存"}
         </Button>
       </div>
     </form>

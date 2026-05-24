@@ -57,32 +57,43 @@ export function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-ink-subtle">
+          我的看板
+        </DropdownMenuLabel>
         <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me")}>我的概览</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute(`/u/${user.handle}`)}>查看我的主页</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/profile")}>编辑主页</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/contacts")}>联系方式</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/contact-requests")}>联系请求</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/registrations")}>我的报名</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/bookmarks")}>我的收藏</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me/drafts")}>草稿箱</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/bookmarks")}>我的收藏</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/registrations")}>我的活动</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/contact-requests")}>联系请求</Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-ink-subtle">
+          我的主页
+        </DropdownMenuLabel>
+        <DropdownMenuItem asChild>
+          <Link href={toQueryRoute(`/u/${user.handle}`)}>查看我的主页</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/contacts")}>联系方式</Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-ink-subtle">
+          我的设置
+        </DropdownMenuLabel>
+        <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me/invites")}>我的邀请码</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={toQueryRoute("/me/profile")}>主页设置</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me/settings")}>设置</Link>

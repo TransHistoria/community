@@ -410,10 +410,11 @@ export const api = {
 
     get: (slug: string) => get<{ event: Event }>(`/api/activities/${slug}`),
 
-    create: (data: EventUpsertData) => post<{ ok: boolean; slug: string }>("/api/activities", data),
+    create: (data: EventUpsertData, asDraft = false) =>
+      post<{ ok: boolean; slug: string; status?: string }>(`/api/activities${asDraft ? "?draft=1" : ""}`, data),
 
-    update: (id: string, data: Partial<EventUpsertData>) =>
-      patch<{ ok: boolean }>(`/api/activities/${id}`, data),
+    update: (id: string, data: Partial<EventUpsertData>, asDraft = false) =>
+      patch<{ ok: boolean; status?: string }>(`/api/activities/${id}${asDraft ? "?draft=1" : ""}`, data),
 
     cancel: (id: string) => del<{ ok: boolean }>(`/api/activities/${id}`),
 
@@ -471,8 +472,12 @@ export const api = {
         data,
       ),
 
-    update: (id: string, data: Partial<{ title: string; body: string; visibility: string }>) =>
-      patch<{ ok: boolean; status: string }>(`/api/posts/${id}`, data),
+    update: (
+      id: string,
+      data: Partial<{ title: string; body: string; visibility: string }>,
+      asDraft = false,
+    ) =>
+      patch<{ ok: boolean; status: string }>(`/api/posts/${id}${asDraft ? "?draft=1" : ""}`, data),
 
     remove: (id: string) => del<{ ok: boolean }>(`/api/posts/${id}`),
 

@@ -146,6 +146,7 @@ events.get("/:slug", optionalAuth, async (c) => {
 // POST /api/activities — requires TRUSTED tier and passes LLM moderation
 events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
   const viewer = viewerFrom(c)!;
+  const asDraft = c.req.query("draft") === "1";
   if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 TRUSTED 及以上权限" }, 403);
 
   const body = await c.req.json<{
@@ -174,6 +175,40 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
 
   const slug = await uniqueSlug(c.env.DB, body.title);
   const id = newId();
+
+  if (asDraft) {
+    await c.env.DB.prepare(
+      `INSERT INTO events (id, organizer_id, title, slug, category, format, description,
+         cover_url, start_at, end_at, timezone, city, precise_addr, online_url,
+         capacity, require_approval, registration_opens_at, registration_closes_at,
+         custom_questions, visibility, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')`,
+    )
+      .bind(
+        id,
+        viewer.id,
+        body.title,
+        slug,
+        body.category,
+        body.format,
+        body.description,
+        body.coverUrl ?? null,
+        body.startAt,
+        body.endAt,
+        body.timezone ?? "Asia/Shanghai",
+        body.city ?? null,
+        body.preciseAddr ?? null,
+        body.onlineUrl ?? null,
+        body.capacity ?? null,
+        body.requireApproval ? 1 : 0,
+        body.registrationOpensAt ?? null,
+        body.registrationClosesAt ?? null,
+        body.customQuestions ? JSON.stringify(body.customQuestions) : null,
+        body.visibility ?? "VERIFIED",
+      )
+      .run();
+    return c.json({ ok: true, slug, status: "DRAFT" });
+  }
 
   // Look up author email up-front for moderation notifications.
   const organizerRow = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
@@ -294,6 +329,7 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
 events.patch("/:id", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
+  const asDraft = c.req.query("draft") === "1";
 
   const event = await c.env.DB.prepare("SELECT * FROM events WHERE id = ?")
     .bind(id)
@@ -309,6 +345,54 @@ events.patch("/:id", requireAuth, async (c) => {
     registrationOpensAt: string | null; registrationClosesAt: string | null;
     customQuestions: unknown[]; visibility: string;
   }>>();
+
+  if (asDraft) {
+    await c.env.DB.prepare(
+      `UPDATE events SET
+         title = COALESCE(?, title),
+         description = COALESCE(?, description),
+         category = COALESCE(?, category),
+         format = COALESCE(?, format),
+         cover_url = ?,
+         start_at = COALESCE(?, start_at),
+         end_at = COALESCE(?, end_at),
+         timezone = COALESCE(?, timezone),
+         city = ?,
+         precise_addr = ?,
+         online_url = ?,
+         capacity = ?,
+         require_approval = COALESCE(?, require_approval),
+         registration_opens_at = ?,
+         registration_closes_at = ?,
+         custom_questions = ?,
+         visibility = COALESCE(?, visibility),
+         status = 'DRAFT',
+         updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(
+        body.title ?? null,
+        body.description ?? null,
+        body.category ?? null,
+        body.format ?? null,
+        body.coverUrl ?? null,
+        body.startAt ?? null,
+        body.endAt ?? null,
+        body.timezone ?? null,
+        body.city ?? null,
+        body.preciseAddr ?? null,
+        body.onlineUrl ?? null,
+        body.capacity ?? null,
+        body.requireApproval !== undefined ? (body.requireApproval ? 1 : 0) : null,
+        body.registrationOpensAt ?? null,
+        body.registrationClosesAt ?? null,
+        body.customQuestions ? JSON.stringify(body.customQuestions) : null,
+        body.visibility ?? null,
+        id,
+      )
+      .run();
+    return c.json({ ok: true, status: "DRAFT" });
+  }
 
   // Re-run moderation if the user edited title or description.
   const nextTitle = body.title ?? event.title;

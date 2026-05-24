@@ -684,6 +684,7 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
 posts.patch("/:id", requireAuth, async (c) => {
   const viewer = viewerFrom(c)!;
   const { id } = c.req.param();
+  const asDraft = c.req.query("draft") === "1";
 
   const post = await c.env.DB.prepare("SELECT * FROM posts WHERE id = ?")
     .bind(id)
@@ -754,6 +755,18 @@ posts.patch("/:id", requireAuth, async (c) => {
   const nextVisibility = body.visibility && ["PUBLIC", "VERIFIED", "TRUSTED"].includes(body.visibility)
     ? body.visibility
     : post.visibility;
+
+  if (asDraft) {
+    await c.env.DB.prepare(
+      `UPDATE posts SET
+         title = ?, body = ?, visibility = ?, status = 'DRAFT',
+         updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(nextTitle, nextText, nextVisibility, id)
+      .run();
+    return c.json({ ok: true, status: "DRAFT" });
+  }
 
   await c.env.DB.prepare(
     `UPDATE posts SET
