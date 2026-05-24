@@ -699,12 +699,31 @@ posts.patch("/:id", requireAuth, async (c) => {
     title?: string;
     body?: string;
     visibility?: string;
+    adminStatus?: "DRAFT" | "PUBLISHED";
   }>();
 
   const nextTitle = (body.title ?? post.title).trim();
   const nextText = (body.body ?? post.body).trim();
   if (nextTitle.length < 2 || nextText.length < 5) {
     return c.json({ error: "标题或正文太短" }, 400);
+  }
+  const nextVisibility = body.visibility && ["PUBLIC", "VERIFIED", "TRUSTED"].includes(body.visibility)
+    ? body.visibility
+    : post.visibility;
+  const adminStatus =
+    isAdmin && body.adminStatus && ["DRAFT", "PUBLISHED"].includes(body.adminStatus)
+      ? body.adminStatus
+      : null;
+  if (adminStatus) {
+    await c.env.DB.prepare(
+      `UPDATE posts SET
+         title = ?, body = ?, visibility = ?, status = ?,
+         updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(nextTitle, nextText, nextVisibility, adminStatus, id)
+      .run();
+    return c.json({ ok: true, status: adminStatus });
   }
 
   const author = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?")
@@ -750,11 +769,7 @@ posts.patch("/:id", requireAuth, async (c) => {
   const finalVerdict = decision.verdict;
   const finalReason = decision.reason;
   const section = normalizePostSection(decision.section);
-  const status = isAdmin ? post.status : statusForVerdict(finalVerdict);
-
-  const nextVisibility = body.visibility && ["PUBLIC", "VERIFIED", "TRUSTED"].includes(body.visibility)
-    ? body.visibility
-    : post.visibility;
+  const status = statusForVerdict(finalVerdict);
 
   if (asDraft) {
     await c.env.DB.prepare(

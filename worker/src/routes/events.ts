@@ -344,7 +344,62 @@ events.patch("/:id", requireAuth, async (c) => {
     capacity: number | null; requireApproval: boolean;
     registrationOpensAt: string | null; registrationClosesAt: string | null;
     customQuestions: unknown[]; visibility: string;
+    adminStatus: "DRAFT" | "PUBLISHED";
   }>>();
+
+  const adminStatus =
+    viewer.tier === "ADMIN" && body.adminStatus && ["DRAFT", "PUBLISHED"].includes(body.adminStatus)
+      ? body.adminStatus
+      : null;
+
+  if (adminStatus) {
+    await c.env.DB.prepare(
+      `UPDATE events SET
+         title = COALESCE(?, title),
+         description = COALESCE(?, description),
+         category = COALESCE(?, category),
+         format = COALESCE(?, format),
+         cover_url = ?,
+         start_at = COALESCE(?, start_at),
+         end_at = COALESCE(?, end_at),
+         timezone = COALESCE(?, timezone),
+         city = ?,
+         precise_addr = ?,
+         online_url = ?,
+         capacity = ?,
+         require_approval = COALESCE(?, require_approval),
+         registration_opens_at = ?,
+         registration_closes_at = ?,
+         custom_questions = ?,
+         visibility = COALESCE(?, visibility),
+         status = ?,
+         updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+      .bind(
+        body.title ?? null,
+        body.description ?? null,
+        body.category ?? null,
+        body.format ?? null,
+        body.coverUrl ?? null,
+        body.startAt ?? null,
+        body.endAt ?? null,
+        body.timezone ?? null,
+        body.city ?? null,
+        body.preciseAddr ?? null,
+        body.onlineUrl ?? null,
+        body.capacity ?? null,
+        body.requireApproval !== undefined ? (body.requireApproval ? 1 : 0) : null,
+        body.registrationOpensAt ?? null,
+        body.registrationClosesAt ?? null,
+        body.customQuestions ? JSON.stringify(body.customQuestions) : null,
+        body.visibility ?? null,
+        adminStatus,
+        id,
+      )
+      .run();
+    return c.json({ ok: true, status: adminStatus });
+  }
 
   if (asDraft) {
     await c.env.DB.prepare(
@@ -451,6 +506,7 @@ events.patch("/:id", requireAuth, async (c) => {
        registration_closes_at = ?,
        custom_questions = ?,
        visibility = COALESCE(?, visibility),
+       status = COALESCE(?, status),
        moderation_verdict = ?,
        moderation_reason = ?,
        moderation_categories = ?,
@@ -478,6 +534,7 @@ events.patch("/:id", requireAuth, async (c) => {
       body.registrationClosesAt ?? null,
       body.customQuestions ? JSON.stringify(body.customQuestions) : null,
       body.visibility ?? null,
+      event.status === "DRAFT" ? "PUBLISHED" : null,
       modVerdict,
       modReason,
       modCategories,

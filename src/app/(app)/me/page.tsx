@@ -28,6 +28,8 @@ export default function MeOverviewPage() {
   const [allRegs, setAllRegs] = React.useState<Registration[]>([]);
   const [pendingReqs, setPendingReqs] = React.useState(0);
   const [unreadNotif, setUnreadNotif] = React.useState(0);
+  const [draftCount, setDraftCount] = React.useState(0);
+  const [bookmarkCount, setBookmarkCount] = React.useState(0);
 
   React.useEffect(() => {
     if (!user) return;
@@ -60,6 +62,8 @@ export default function MeOverviewPage() {
     api.notifications.list(true).then((res: { notifications: unknown[] }) => {
       setUnreadNotif(res.notifications.length);
     });
+    api.posts.myDrafts().then((res) => setDraftCount(res.posts.length)).catch(() => setDraftCount(0));
+    api.posts.myBookmarks().then((res) => setBookmarkCount(res.posts.length)).catch(() => setBookmarkCount(0));
   }, [user]);
 
   if (!user) return null;
@@ -86,12 +90,54 @@ export default function MeOverviewPage() {
           href={toQueryRoute("/me/contact-requests")}
         />
         <StatCard
+          label="草稿箱"
+          value={draftCount}
+          hint="继续编辑并发布你的草稿"
+          href={toQueryRoute("/me/drafts")}
+        />
+        <StatCard
+          label="我的收藏"
+          value={bookmarkCount}
+          hint="你收藏过的帖子"
+          href={toQueryRoute("/me/bookmarks")}
+        />
+        <StatCard
           label="未读通知"
           value={unreadNotif}
           hint="活动状态、请求回复等"
           href={toQueryRoute("/notifications")}
         />
       </div>
+
+      <section className="space-y-3">
+        <h2 className="font-serif text-h2 tracking-tight">个人编辑与管理</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="编辑主页与联系方式"
+            value="进入"
+            hint="个人资料、联系方式统一管理"
+            href={toQueryRoute("/me/profile")}
+          />
+          <StatCard
+            label="我的活动"
+            value={allRegs.length}
+            hint="查看全部报名状态"
+            href={toQueryRoute("/me/registrations")}
+          />
+          <StatCard
+            label="联系请求"
+            value={pendingReqs}
+            hint="处理他人的查看申请"
+            href={toQueryRoute("/me/contact-requests")}
+          />
+          <StatCard
+            label="邀请码与设置"
+            value="进入"
+            hint="邀请码与账号设置"
+            href={toQueryRoute("/me/invites")}
+          />
+        </div>
+      </section>
 
       <section className="space-y-3">
         <div className="flex items-end justify-between">

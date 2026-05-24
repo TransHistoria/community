@@ -26,6 +26,7 @@ import { eventInputSchema, type EventInput } from "@/lib/validators/event";
 import { api } from "@/lib/api";
 import { Plus, Trash2 } from "lucide-react";
 import { toQueryRoute } from "@/lib/query-routing";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Question = {
   id: string;
@@ -113,8 +114,10 @@ export function EventForm({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [pending, setPending] = React.useState(false);
   const isDraftEdit = mode === "edit" && initial?.status === "DRAFT";
+  const isAdmin = user?.tier === "ADMIN";
   const [form, setForm] = React.useState<FormState>(() => ({
     ...DEFAULT,
     ...(initial as Partial<FormState>),
@@ -130,7 +133,11 @@ export function EventForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function onSubmit(e: React.FormEvent, asDraft = false) {
+  async function onSubmit(
+    e: React.FormEvent,
+    asDraft = false,
+    adminStatus?: "DRAFT" | "PUBLISHED",
+  ) {
     e.preventDefault();
     const payload: EventInput = {
       title: form.title.trim(),
@@ -168,7 +175,11 @@ export function EventForm({
     const res =
       mode === "create"
         ? await api.events.create(parsed.data, asDraft)
-        : await api.events.update(eventId!, parsed.data, asDraft);
+        : await api.events.update(
+            eventId!,
+            adminStatus ? { ...parsed.data, adminStatus } : parsed.data,
+            asDraft,
+          );
     setPending(false);
     if (res.ok) {
       toast({
@@ -216,7 +227,10 @@ export function EventForm({
   const isHybrid = form.format === "HYBRID";
 
   return (
-    <form onSubmit={(e) => onSubmit(e, false)} className="space-y-6">
+    <form
+      onSubmit={(e) => onSubmit(e, false, isAdmin && isDraftEdit ? "PUBLISHED" : undefined)}
+      className="space-y-6"
+    >
       <Card>
         <CardContent className="pt-6 space-y-5">
           <div className="space-y-2">
@@ -521,6 +535,17 @@ export function EventForm({
             onClick={(e) => onSubmit(e as unknown as React.FormEvent, true)}
           >
             {pending ? "保存中..." : mode === "create" ? "存为草稿" : "保存"}
+          </Button>
+        ) : null}
+        {mode === "edit" && isAdmin && !isDraftEdit ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            size="lg"
+            onClick={(e) => onSubmit(e as unknown as React.FormEvent, false, "DRAFT")}
+          >
+            转为草稿
           </Button>
         ) : null}
         <Button type="submit" disabled={pending} size="lg">

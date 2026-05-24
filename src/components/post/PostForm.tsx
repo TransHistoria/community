@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast-context";
 import { toQueryRoute } from "@/lib/query-routing";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Mode = "create" | "edit";
 
@@ -32,12 +33,14 @@ export function PostForm({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
 
   const [title, setTitle] = React.useState(initial?.title ?? "");
   const [body, setBody] = React.useState(initial?.body ?? "");
   const [visibility, setVisibility] = React.useState(initial?.visibility ?? "VERIFIED");
   const isDraftEdit = mode === "edit" && initial?.status === "DRAFT";
+  const isAdmin = user?.tier === "ADMIN";
   const [submitting, setSubmitting] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
 
@@ -80,7 +83,11 @@ export function PostForm({
     }
   }
 
-  async function submit(e: React.FormEvent, asDraft = false) {
+  async function submit(
+    e: React.FormEvent,
+    asDraft = false,
+    adminStatus?: "DRAFT" | "PUBLISHED",
+  ) {
     e.preventDefault();
     if (submitting) return;
     setSubmitting(true);
@@ -105,7 +112,11 @@ export function PostForm({
           router.push(toQueryRoute(`/posts/${res.id}`));
         }
       } else if (postId) {
-        await api.posts.update(postId, payload, asDraft);
+        await api.posts.update(
+          postId,
+          adminStatus ? { ...payload, adminStatus } : payload,
+          asDraft,
+        );
         toast({ title: asDraft ? "草稿已保存" : "已保存", variant: "success" });
         if (asDraft) {
           router.push(toQueryRoute(`/posts/${postId}/edit`));
@@ -122,7 +133,10 @@ export function PostForm({
   }
 
   return (
-    <form onSubmit={(e) => submit(e, false)} className="space-y-6">
+    <form
+      onSubmit={(e) => submit(e, false, isAdmin && isDraftEdit ? "PUBLISHED" : undefined)}
+      className="space-y-6"
+    >
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div className="space-y-2">
@@ -216,6 +230,16 @@ export function PostForm({
             onClick={(e) => submit(e as unknown as React.FormEvent, true)}
           >
             保存草稿
+          </Button>
+        ) : null}
+        {mode === "edit" && isAdmin && !isDraftEdit ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting || !title.trim() || !body.trim()}
+            onClick={(e) => submit(e as unknown as React.FormEvent, false, "DRAFT")}
+          >
+            转为草稿
           </Button>
         ) : null}
         <Button type="submit" disabled={submitting}>

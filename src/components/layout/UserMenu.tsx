@@ -83,7 +83,7 @@ export function UserMenu({
           <Link href={toQueryRoute(`/u/${user.handle}`)}>查看我的主页</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/contacts")}>联系方式</Link>
+          <Link href={toQueryRoute("/me/profile")}>编辑主页与联系方式</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-ink-subtle">
@@ -91,9 +91,6 @@ export function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me/invites")}>我的邀请码</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={toQueryRoute("/me/profile")}>主页设置</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href={toQueryRoute("/me/settings")}>设置</Link>

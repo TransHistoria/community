@@ -413,7 +413,11 @@ export const api = {
     create: (data: EventUpsertData, asDraft = false) =>
       post<{ ok: boolean; slug: string; status?: string }>(`/api/activities${asDraft ? "?draft=1" : ""}`, data),
 
-    update: (id: string, data: Partial<EventUpsertData>, asDraft = false) =>
+    update: (
+      id: string,
+      data: Partial<EventUpsertData> & { adminStatus?: "DRAFT" | "PUBLISHED" },
+      asDraft = false,
+    ) =>
       patch<{ ok: boolean; status?: string }>(`/api/activities/${id}${asDraft ? "?draft=1" : ""}`, data),
 
     cancel: (id: string) => del<{ ok: boolean }>(`/api/activities/${id}`),
@@ -474,7 +478,7 @@ export const api = {
 
     update: (
       id: string,
-      data: Partial<{ title: string; body: string; visibility: string }>,
+      data: Partial<{ title: string; body: string; visibility: string }> & { adminStatus?: "DRAFT" | "PUBLISHED" },
       asDraft = false,
     ) =>
       patch<{ ok: boolean; status: string }>(`/api/posts/${id}${asDraft ? "?draft=1" : ""}`, data),
