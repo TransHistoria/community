@@ -25,6 +25,10 @@ import MeRegistrationsPage from "../(app)/me/registrations/page";
 import MeInvitesPage from "../(app)/me/invites/page";
 import MeBlocksPage from "../(app)/me/blocks/page";
 import NotificationsPage from "../(app)/notifications/page";
+import PostsPage from "../(app)/posts/page";
+import NewPostPage from "../(app)/posts/new/page";
+import PostDetailPageClient from "../(app)/posts/PostDetailPageClient";
+import EditPostPageClient from "../(app)/posts/EditPostPageClient";
 import AdminLayout from "../admin/layout";
 import AdminApplicationsPage from "../admin/applications/page";
 import AdminReportsPage from "../admin/reports/page";
@@ -61,6 +65,10 @@ function HomePageInner() {
   const isLegacyEventsManage = queryRoutePath === "/events/manage";
   const isLegacyEventsRegister = queryRoutePath === "/events/register";
   const isEventsNew = queryRoutePath === "/events/new";
+  const isPostsIndex = queryRoutePath === "/posts";
+  const isPostNew = queryRoutePath === "/posts/new";
+  const isPostEdit = /^\/posts\/[^/]+\/edit$/.test(queryRoutePath);
+  const isPostDetail = /^\/posts\/[^/]+$/.test(queryRoutePath);
   const isLegacyUserDetail = queryRoutePath === "/u";
   const isMeIndex = queryRoutePath === "/me";
   const isMeProfile = queryRoutePath === "/me/profile";
@@ -123,6 +131,10 @@ function HomePageInner() {
   }
   if (isEventsIndex) return <EventsPage />;
   if (isEventsNew) return <NewEventPage />;
+  if (isPostsIndex) return <PostsPage />;
+  if (isPostNew) return <NewPostPage />;
+  if (isPostEdit) return <EditPostPageClient />;
+  if (isPostDetail) return <PostDetailPageClient />;
   if (isLegacyEventsManage) return <ManageEventPageClient />;
   if (isLegacyEventsEdit) return <EditEventPageClient />;
   if (isLegacyEventsRegister) return <RegisterPageClient />;

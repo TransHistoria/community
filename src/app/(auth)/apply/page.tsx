@@ -1,6 +1,6 @@
-import ApplyPageClient from "./ApplyPageClient";
+"use client";
 
-export const metadata = { title: "入站申请" };
+import ApplyPageClient from "./ApplyPageClient";
 
 export default function ApplyPage() {
   return <ApplyPageClient />;

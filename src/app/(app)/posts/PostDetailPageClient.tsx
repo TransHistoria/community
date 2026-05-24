@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Trash2, ArrowLeft, Pencil, Heart, Bookmark, UserPlus, UserMinus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -18,18 +18,22 @@ import { ReportButton } from "@/components/moderation/ReportButton";
 import { useToast } from "@/components/ui/toast-context";
 import { TAG_LABEL, parsePostTags } from "@/lib/post-tags";
 import { relativeTime } from "@/lib/utils";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 function PostDetailInner() {
   const params = useParams<{ id: string }>();
-  const id = params?.id;
+  const searchParams = useSearchParams();
+  const queryRoutePath = React.useMemo(() => getQueryRoute(searchParams).path, [searchParams]);
+  const queryId = React.useMemo(() => {
+    const match = queryRoutePath.match(/^\/posts\/([^/]+)$/);
+    return match?.[1];
+  }, [queryRoutePath]);
+  const id = params?.id ?? queryId;
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [post, setPost] = React.useState<Post | null>(null);
   const [notFound, setNotFound] = React.useState(false);
-  // Ref-based locks so rapid double-clicks don't fire concurrent toggles
-  // and end up out of sync with the server.
   const likePending = React.useRef(false);
   const bookmarkPending = React.useRef(false);
   const subPending = React.useRef(false);
@@ -79,7 +83,6 @@ function PostDetailInner() {
     setPost((p) => (p ? { ...p, liked: !before, likeCount: (p.likeCount ?? 0) + (before ? -1 : 1) } : p));
     try {
       const res = await api.posts.toggleLike(id);
-      // Source of truth: reconcile to server value in case of any drift.
       setPost((p) => (p ? { ...p, liked: res.liked } : p));
     } catch {
       setPost((p) => (p ? { ...p, liked: before, likeCount: (p.likeCount ?? 0) + (before ? 1 : -1) } : p));
@@ -223,7 +226,6 @@ function PostDetailInner() {
           </ReactMarkdown>
         </div>
 
-        {/* Action bar — like / bookmark / report / edit / delete */}
         <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-border">
           {user ? (
             <>
@@ -271,7 +273,7 @@ function PostDetailInner() {
   );
 }
 
-export default function PostDetailPage() {
+export default function PostDetailPageClient() {
   return (
     <Suspense>
       <PostDetailInner />

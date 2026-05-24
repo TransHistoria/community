@@ -1,6 +1,6 @@
-import VerifySignInPageClient from "./VerifySignInPageClient";
+"use client";
 
-export const metadata = { title: "验证登录链接" };
+import VerifySignInPageClient from "./VerifySignInPageClient";
 
 export default function VerifySignInPage() {
   return <VerifySignInPageClient />;

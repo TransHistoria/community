@@ -143,10 +143,10 @@ events.get("/:slug", optionalAuth, async (c) => {
   return c.json({ event: result });
 });
 
-// POST /api/activities — requires TRUSTED tier and passes LLM moderation
-events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
+// POST /api/activities — requires VERIFIED tier and passes LLM moderation
+events.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
   const viewer = viewerFrom(c)!;
-  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 TRUSTED 及以上权限" }, 403);
+  if (!canCreateEvent(viewer)) return c.json({ error: "无权创建活动，需要 VERIFIED 及以上权限" }, 403);
 
   const body = await c.req.json<{
     title: string;
@@ -211,8 +211,7 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
     }
   }
 
-  const status =
-    verdict === "reject" ? "CANCELLED" : verdict === "flag" ? "DRAFT" : "PUBLISHED";
+  const status = "PUBLISHED";
 
   await c.env.DB.prepare(
     `INSERT INTO events (id, organizer_id, title, slug, category, format, description,
@@ -255,11 +254,11 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
 
   // Notify the organizer about the outcome (in-app always; email for flag/reject).
   const kind =
-    status === "PUBLISHED"
-      ? "EVENT_APPROVED"
-      : status === "DRAFT"
+    verdict === "reject"
+      ? "EVENT_REJECTED"
+      : verdict === "flag"
         ? "EVENT_PENDING_REVIEW"
-        : "EVENT_REJECTED";
+        : "EVENT_APPROVED";
   await c.env.DB.prepare(
     "INSERT INTO notifications (id, user_id, kind, payload) VALUES (?, ?, ?, ?)",
   )
@@ -270,7 +269,7 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
       JSON.stringify({ eventSlug: slug, title: body.title, reason, status }),
     )
     .run();
-  if ((status === "DRAFT" || status === "CANCELLED") && organizerEmail) {
+  if ((verdict === "flag" || verdict === "reject") && organizerEmail) {
     try {
       await sendModerationStatusEmail(
         { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
@@ -278,7 +277,7 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
           to: organizerEmail,
           title: body.title,
           url: `${c.env.FRONTEND_URL}/events/${slug}`,
-          status: status === "DRAFT" ? "PENDING_REVIEW" : "REJECTED",
+          status: verdict === "flag" ? "PENDING_REVIEW" : "REJECTED",
           targetKind: "EVENT",
           reason,
         },
@@ -314,7 +313,8 @@ events.patch("/:id", requireAuth, async (c) => {
   // Re-run moderation if the user edited title or description.
   const nextTitle = body.title ?? event.title;
   const nextDescription = body.description ?? event.description;
-  const contentChanged = body.title !== undefined || body.description !== undefined;
+  const contentChanged = body.description !== undefined;
+  const descriptionChanged = body.description !== undefined;
   let modVerdict: string | null = event.moderation_verdict;
   let modReason: string | null = event.moderation_reason;
   let modCategories: string | null = event.moderation_categories;
@@ -335,7 +335,7 @@ events.patch("/:id", requireAuth, async (c) => {
     if (decision.verdict === "reject") {
       return c.json({ error: decision.reason || "内容不符合社区规范" }, 400);
     }
-    if (decision.section !== "EVENT") {
+    if (descriptionChanged && decision.section !== "EVENT") {
       return c.json({
         error: "修改后的内容不再像活动,请改为帖子发布",
       }, 400);
@@ -667,7 +667,7 @@ events.post("/:id/comments", requireAuth, requireTier("VERIFIED"), async (c) => 
   if (decision.verdict === "reject") {
     return c.json({ error: decision.reason || "评论不符合社区规范" }, 400);
   }
-  const hidden = decision.verdict === "flag" ? 1 : 0;
+  const hidden = 0;
 
   await c.env.DB.prepare(
     "INSERT INTO comments (id, event_id, post_id, author_id, body, parent_id, is_hidden, hidden_reason, is_bot) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0)",

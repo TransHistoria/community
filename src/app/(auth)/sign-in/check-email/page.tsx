@@ -1,6 +1,6 @@
-import CheckEmailPageClient from "./CheckEmailPageClient";
+"use client";
 
-export const metadata = { title: "查收邮件" };
+import CheckEmailPageClient from "./CheckEmailPageClient";
 
 export default function CheckEmailPage() {
   return <CheckEmailPageClient />;

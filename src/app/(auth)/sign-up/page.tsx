@@ -1,6 +1,6 @@
-import SignUpPageClient from "./SignUpPageClient";
+"use client";
 
-export const metadata = { title: "加入社群" };
+import SignUpPageClient from "./SignUpPageClient";
 
 export default function SignUpPage() {
   return <SignUpPageClient />;

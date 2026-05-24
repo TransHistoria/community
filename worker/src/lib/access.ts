@@ -51,8 +51,7 @@ export function canEditEvent(
 
 export function canCreateEvent(viewer: Viewer): boolean {
   if (!viewer) return false;
-  // Activities are high-stakes (offline meetups, video sessions). Limit to trusted members.
-  return rank(viewer.tier) >= rank("TRUSTED");
+  return rank(viewer.tier) >= rank("VERIFIED");
 }
 
 export function canRegister(

@@ -2,18 +2,24 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, type Post } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEditPost } from "@/lib/access";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty";
 import { PostForm } from "@/components/post/PostForm";
-import { toQueryRoute } from "@/lib/query-routing";
+import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
 function EditPostInner() {
   const params = useParams<{ id: string }>();
-  const id = params?.id;
+  const searchParams = useSearchParams();
+  const queryRoutePath = React.useMemo(() => getQueryRoute(searchParams).path, [searchParams]);
+  const queryId = React.useMemo(() => {
+    const match = queryRoutePath.match(/^\/posts\/([^/]+)\/edit$/);
+    return match?.[1];
+  }, [queryRoutePath]);
+  const id = params?.id ?? queryId;
   const { user, loading } = useAuth();
   const router = useRouter();
   const [post, setPost] = React.useState<Post | null>(null);
@@ -71,7 +77,7 @@ function EditPostInner() {
   );
 }
 
-export default function EditPostPage() {
+export default function EditPostPageClient() {
   return (
     <Suspense>
       <EditPostInner />
