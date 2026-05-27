@@ -117,20 +117,24 @@ export const ReportTarget = {
 export type ReportTarget = (typeof ReportTarget)[keyof typeof ReportTarget];
 
 // ============================================================
-// 帖子（POST 普通 / MEDICAL 医疗信息 / RESOURCE 资源分享）
+// 帖子分类（提问求助 / 线下交友 / 医疗信息 / 资源分享 / 感悟）
 // ============================================================
 
 export const PostSection = {
-  POST: "POST",
+  QUESTION: "QUESTION",
+  OFFLINE_MEETUP: "OFFLINE_MEETUP",
   MEDICAL: "MEDICAL",
   RESOURCE: "RESOURCE",
+  REFLECTION: "REFLECTION",
 } as const;
 export type PostSection = (typeof PostSection)[keyof typeof PostSection];
 
 export const POST_SECTION_LABEL: Record<PostSection, string> = {
-  POST: "动态",
+  QUESTION: "提问求助",
+  OFFLINE_MEETUP: "线下交友",
   MEDICAL: "医疗信息",
   RESOURCE: "资源分享",
+  REFLECTION: "感悟",
 };
 
 export const PostStatus = {

@@ -23,7 +23,6 @@ import {
   moderateAndClassify,
   generateXiaoTReply,
   type ModerationDecision,
-  type EventDraft,
 } from "@/lib/llm";
 import { containsBlockedTerms } from "@/lib/keywords";
 import { sendModerationStatusEmail } from "@/email/sender";
@@ -114,52 +113,12 @@ async function uniqueEventSlug(db: D1Database, base: string): Promise<string> {
   return `${stem}-${randomCode(6).toLowerCase()}`;
 }
 
-/** Create an event row from an LLM-extracted draft. Assumes the draft is complete. */
-async function createEventFromDraft(
-  env: Env,
-  organizerId: string,
-  draft: EventDraft,
-  fallbackTitle: string,
-  fallbackBody: string,
-): Promise<{ id: string; slug: string }> {
-  const title = (draft.title ?? fallbackTitle).slice(0, 200);
-  const description = (draft.description ?? fallbackBody).slice(0, 20000);
-  const slug = await uniqueEventSlug(env.DB, title);
-  const id = newId();
-  await env.DB.prepare(
-    `INSERT INTO events (
-       id, organizer_id, title, slug, category, format, description,
-       start_at, end_at, timezone, city, precise_addr, online_url, capacity,
-       require_approval, visibility, status,
-       moderation_verdict, moderation_reason, moderation_classifier, moderated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Asia/Shanghai', ?, ?, ?, ?, 0, 'VERIFIED', 'PUBLISHED',
-              'pass', '内容由 LLM 从帖子自动迁移过来', 'LLM', datetime('now'))`,
-  )
-    .bind(
-      id,
-      organizerId,
-      title,
-      slug,
-      draft.category ?? "OTHER",
-      draft.format ?? "OFFLINE",
-      description,
-      draft.startAt!,
-      draft.endAt!,
-      draft.city ?? null,
-      draft.preciseAddr ?? null,
-      draft.onlineUrl ?? null,
-      draft.capacity ?? null,
-    )
-    .run();
-  return { id, slug };
-}
-
-// LLM may return POST/MEDICAL/RESOURCE for the posts table. EVENT is handled
-// separately because activities have a dedicated /api/activities route and a
-// tier gate; we don't silently demote them to posts here.
-function normalizePostSection(decisionSection: string): "POST" | "MEDICAL" | "RESOURCE" {
-  if (decisionSection === "MEDICAL" || decisionSection === "RESOURCE") return decisionSection;
-  return "POST";
+// Map LLM section to the posts table section string.
+function normalizePostSection(decisionSection: string): string {
+  if (decisionSection === "QUESTION" || decisionSection === "OFFLINE_MEETUP" ||
+      decisionSection === "MEDICAL" || decisionSection === "RESOURCE" ||
+      decisionSection === "REFLECTION") return decisionSection;
+  return "QUESTION";
 }
 
 async function notifyModerationOutcome(
@@ -482,140 +441,6 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     authorTier: viewer.tier,
   });
 
-  // === Posts board does not host ORGANIZING activity content. ===
-  // The LLM splits EVENT into two intents:
-  //   - "DISCUSSING": user is just sharing/asking about an activity.
-  //     Treat as a normal POST so VERIFIED members aren't blocked from
-  //     conversation just because they mentioned a meetup.
-  //   - "ORGANIZING": user is calling people to attend a new activity.
-  //     Activities require TRUSTED+, so:
-  //       < TRUSTED: refuse to save the post at all + notify.
-  //       TRUSTED+ + draft complete: auto-create activity, skip saving post.
-  //       TRUSTED+ + draft incomplete: save post as PENDING_REVIEW with
-  //                                    missing-field hints.
-  if (decision.section === "EVENT" && decision.eventIntent === "ORGANIZING") {
-    if (rank(viewer.tier) < rank("TRUSTED")) {
-      const reason = "内容看起来是要组织活动。社群活动需要由 TRUSTED 及以上成员发起,你可以联系组织者代发。";
-      await notify(c.env.DB, viewer.id, "POST_BLOCKED_EVENT", {
-        title,
-        reason,
-        status: "BLOCKED",
-      });
-      if (authorEmail) {
-        try {
-          await sendModerationStatusEmail(
-            { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-            {
-              to: authorEmail,
-              title,
-              url: `${c.env.FRONTEND_URL}/posts`,
-              status: "REJECTED",
-              targetKind: "POST",
-              reason,
-            },
-          );
-        } catch (err) {
-          console.error("blocked-event email failed:", err);
-        }
-      }
-      await audit(c.env.DB, viewer.id, "POST_BLOCKED_EVENT", "Post", "(not saved)", {
-        reason,
-      });
-      return c.json({ ok: true, status: "BLOCKED" });
-    }
-
-    // Has permission. Try to auto-migrate to the activities table.
-    if (decision.eventDraftComplete && decision.eventDraft) {
-      const draft = decision.eventDraft;
-      try {
-        const event = await createEventFromDraft(c.env, viewer.id, draft, title, text);
-        await notify(c.env.DB, viewer.id, "POST_RELOCATED_TO_EVENT", {
-          eventSlug: event.slug,
-          eventId: event.id,
-          title: draft.title ?? title,
-          status: "RELOCATED",
-        });
-        if (authorEmail) {
-          try {
-            await sendModerationStatusEmail(
-              { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-              {
-                to: authorEmail,
-                title: draft.title ?? title,
-                url: `${c.env.FRONTEND_URL}/events/${event.slug}`,
-                status: "PENDING_REVIEW",
-                targetKind: "EVENT",
-                reason: "内容是活动召集,系统已自动迁移到活动区。请核对详情,有问题随时编辑。",
-              },
-            );
-          } catch (err) {
-            console.error("relocated-event email failed:", err);
-          }
-        }
-        await audit(c.env.DB, viewer.id, "POST_RELOCATED_TO_EVENT", "Event", event.id, {
-          fromPostDraft: true,
-        });
-        return c.json({ ok: true, status: "RELOCATED", eventSlug: event.slug });
-      } catch (err) {
-        console.error("auto-create event from draft failed:", err);
-        // fall through to the incomplete path so we don't drop the user's text
-      }
-    }
-
-    // Permission OK but the draft can't be auto-filled. Save the post in a
-    // PENDING_REVIEW state so the author keeps their text, and tell them
-    // exactly what to add before re-posting in the activities module.
-    const missing = decision.eventDraftMissing && decision.eventDraftMissing.length > 0
-      ? decision.eventDraftMissing.join("、")
-      : "时间、地点、人数等关键信息";
-    const reason = `内容看起来是活动,但缺少 ${missing}。补全后请去活动模块发起,我们暂存到你的待审核帖子里。`;
-    const idIncomplete = newId();
-    await c.env.DB.prepare(
-      `INSERT INTO posts (id, author_id, section, title, body, tags, visibility, status,
-         moderation_verdict, moderation_reason, moderation_classifier, moderated_at)
-       VALUES (?, ?, 'POST', ?, ?, ?, ?, 'PENDING_REVIEW',
-         'flag', ?, 'LLM', datetime('now'))`,
-    )
-      .bind(
-        idIncomplete,
-        viewer.id,
-        title,
-        text,
-        JSON.stringify(decision.tags.length > 0 ? decision.tags : ["announcement"]),
-        visibility,
-        reason,
-      )
-      .run();
-    await notify(c.env.DB, viewer.id, "POST_NEEDS_EVENT_INFO", {
-      postId: idIncomplete,
-      title,
-      missing: decision.eventDraftMissing ?? [],
-      reason,
-      status: "PENDING_REVIEW",
-    });
-    if (authorEmail) {
-      try {
-        await sendModerationStatusEmail(
-          { sendEmail: c.env.SEND_EMAIL, from: c.env.EMAIL_FROM, appName: c.env.APP_NAME },
-          {
-            to: authorEmail,
-            title,
-            url: `${c.env.FRONTEND_URL}/posts/${idIncomplete}`,
-            status: "PENDING_REVIEW",
-            targetKind: "POST",
-            reason,
-          },
-        );
-      } catch (err) {
-        console.error("needs-event-info email failed:", err);
-      }
-    }
-    await audit(c.env.DB, viewer.id, "POST_NEEDS_EVENT_INFO", "Post", idIncomplete, {
-      missing: decision.eventDraftMissing,
-    });
-    return c.json({ ok: true, id: idIncomplete, status: "PENDING_REVIEW" });
-  }
-
   const finalVerdict = decision.verdict;
   const finalReason = decision.reason;
   const section = normalizePostSection(decision.section);
@@ -758,14 +583,6 @@ posts.patch("/:id", requireAuth, async (c) => {
     authorTier: viewer.tier,
   });
 
-  // EVENT-shaped edits that look like *organising* a new activity: refuse.
-  // We don't auto-migrate on PATCH because the post already exists and may
-  // have comments. DISCUSSING-intent edits fall through and save as POST.
-  if (decision.section === "EVENT" && decision.eventIntent === "ORGANIZING") {
-    return c.json({
-      error: "修改后的内容像是要组织活动,请保留原帖或去活动模块发起新活动。",
-    }, 400);
-  }
   const finalVerdict = decision.verdict;
   const finalReason = decision.reason;
   const section = normalizePostSection(decision.section);

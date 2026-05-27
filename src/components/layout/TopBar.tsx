@@ -17,12 +17,6 @@ export function TopBar() {
           <Logo />
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <Link
-              href={toQueryRoute("/events")}
-              className="text-ink-muted hover:text-ink transition-colors"
-            >
-              活动
-            </Link>
-            <Link
               href={toQueryRoute("/posts")}
               className="text-ink-muted hover:text-ink transition-colors"
             >

@@ -240,7 +240,7 @@ events.post("/", requireAuth, requireTier("TRUSTED"), async (c) => {
     categoriesJson = JSON.stringify(decision.categories);
     raw = decision.raw;
     classifier = decision.classifier;
-    if (decision.section !== "EVENT") {
+    if (String(decision.section) !== "EVENT") {
       verdict = "reject";
       reason = decision.reason || "内容看起来更像帖子,请改发到「广场」对应板块。";
     }
@@ -474,7 +474,7 @@ events.patch("/:id", requireAuth, async (c) => {
     if (decision.verdict === "reject") {
       return c.json({ error: decision.reason || "内容不符合社区规范" }, 400);
     }
-    if (descriptionChanged && decision.section !== "EVENT") {
+    if (descriptionChanged && String(decision.section) !== "EVENT") {
       return c.json({
         error: "修改后的内容不再像活动,请改为帖子发布",
       }, 400);

@@ -12,20 +12,19 @@ import { withRetry } from "./retry";
 
 export type ModerationVerdict = "pass" | "flag" | "reject";
 
-export type ModeratableSection = "POST" | "MEDICAL" | "RESOURCE" | "EVENT";
+export type ModeratableSection = "QUESTION" | "OFFLINE_MEETUP" | "MEDICAL" | "RESOURCE" | "REFLECTION";
 
 export type ModerationInputKind = "POST" | "COMMENT" | "EVENT";
 
 export type PostTag =
+  | "question-help"
+  | "offline-meetup"
   | "medical-hospital-review"
   | "medical-science"
   | "medical-experience"
   | "resource-offer"
   | "resource-request"
-  | "question-help"
-  | "share-life"
-  | "share-resource"
-  | "announcement";
+  | "reflection";
 
 export type ModerationInput = {
   kind: ModerationInputKind;
@@ -33,40 +32,6 @@ export type ModerationInput = {
   body: string;
   authorTier: string;
 };
-
-export type EventCategory =
-  | "PSYCH_SUPPORT"
-  | "SOCIAL"
-  | "SPORTS"
-  | "ONLINE_GAMING"
-  | "STUDY"
-  | "WORKSHOP"
-  | "ADVOCACY"
-  | "OTHER";
-
-export type EventFormat = "ONLINE" | "OFFLINE" | "HYBRID";
-
-export type EventDraft = {
-  title?: string;
-  description?: string;
-  category?: EventCategory;
-  format?: EventFormat;
-  /** ISO-8601 datetime string, e.g. 2026-06-21T14:00:00+08:00 */
-  startAt?: string;
-  endAt?: string;
-  city?: string;
-  preciseAddr?: string;
-  onlineUrl?: string;
-  capacity?: number;
-};
-
-/**
- * Distinguishes between "I'm organising a new activity" (needs TRUSTED+
- * activity-creation rights) and "I'm just talking about an activity"
- * (shared news, retrospective, discussion question — fine as a regular post).
- * Only set when section==="EVENT".
- */
-export type EventIntent = "ORGANIZING" | "DISCUSSING";
 
 export type ModerationDecision = {
   verdict: ModerationVerdict;
@@ -76,14 +41,6 @@ export type ModerationDecision = {
   categories: string[];
   classifier: "LLM" | "FALLBACK";
   raw: string;
-  /** Only populated when section==="EVENT". */
-  eventIntent?: EventIntent;
-  /** Only populated when section==="EVENT". Best-effort extraction from prose. */
-  eventDraft?: EventDraft;
-  /** True when eventDraft has every field needed to create a valid event row. */
-  eventDraftComplete?: boolean;
-  /** Human-readable Chinese labels of missing fields (for the user-facing prompt). */
-  eventDraftMissing?: string[];
 };
 
 const REQUEST_TIMEOUT_MS = 15000;
@@ -97,46 +54,28 @@ const MOD_SYSTEM_PROMPT = `你是「跨性别社群」私域平台的内容审�
    - "flag":  存在边界感、需要人工复核(轻微推销、个人色彩强烈的医生评价、隐含求购药物、紧急人身安全求助等)
    - "pass":  正常合规
 
-2) section — 顶层归属
-   - "EVENT":     涉及一个具体活动/聚会/线上会议(可以是组织、邀请,也可以是分享、回顾、讨论)
+2) section — 从以下分类选一个最合适的(唯一值):
+   - "QUESTION":    提问、求助、寻求建议和帮助
+   - "OFFLINE_MEETUP": 线下交友、面基、聚会(非活动类,纯社交)
    - "MEDICAL":   涉及医疗、HRT、心理、医院、医生、医学知识、学术研究、个人就诊或用药经历
    - "RESOURCE":  提供或寻求帮助/技能/资源
-   - "POST":      其他日常分享、心情、提问
+   - "REFLECTION": 感悟、生活分享、心情随笔、成长记录
 
 3) tags — 从下面受控词表选 1~3 个最贴切:
+   - question-help, offline-meetup
    - medical-hospital-review, medical-science, medical-experience
    - resource-offer, resource-request
-   - question-help, share-life, share-resource, announcement
+   - reflection
 
 4) categories — verdict 是 reject/flag 时填命中的违规分类标签(porn/hookup/drug/ad/illegal/attack 等)
-
-5) 仅当 section==="EVENT" 时,**额外输出**:
-   - eventIntent: 进一步区分作者意图
-     * "ORGANIZING": 作者本人想发起一次具体的活动,在召集人来参加(有"我打算"/"邀请大家"/"扫码报名"/明确给出时间地点等信号)
-     * "DISCUSSING": 作者只是分享、回顾、转发、提问某个活动(包括转发别人的活动信息、回忆刚参加完的聚会、咨询某活动的细节)。即便提到了时间/地点,只要作者不是在召集,就归到这里。
-     判断时要谨慎,凡是不确定"作者要不要别人因此而来参加"的,默认 DISCUSSING。
-
-   - eventDraft: 仅当 eventIntent==="ORGANIZING" 时填,一个对象,尽量从原文提取下列字段(无法提取就省略该字段):
-     * title (必填,短标题)
-     * description (必填,可在原文基础上稍作整理)
-     * category: 从 PSYCH_SUPPORT/SOCIAL/SPORTS/ONLINE_GAMING/STUDY/WORKSHOP/ADVOCACY/OTHER 选一个
-     * format: ONLINE / OFFLINE / HYBRID
-     * startAt: ISO-8601 格式时间,带时区,如 "2026-06-21T14:00:00+08:00"。当前日期是 ${new Date().toISOString().slice(0, 10)},「这周六」「下个月3号」等相对时间请展开为绝对时间
-     * endAt: 同上;若原文只给开始时间,可按 2 小时估算
-     * city: OFFLINE/HYBRID 必填,城市名
-     * preciseAddr: 精确地址(可选)
-     * onlineUrl: 会议链接(可选)
-     * capacity: 人数上限(可选)
-   - eventDraftComplete: true 当且仅当 (title + description + category + format + startAt + endAt) 都有,且 format=OFFLINE/HYBRID 时 city 也有
-   - eventDraftMissing: 中文字段名数组,列出缺少的必填字段(如 ["开始时间","城市"])。complete=true 时空数组。
 
 约束:
 - 即便用户没说自己想发到哪里,你也要给出最合适的 section。
 - 不要因为「没填医院名」就拒绝医疗科普类内容。医疗科普/知识/学术/经验分享都允许 pass。
-- 评论(kind=COMMENT)统一返回 section=POST,tags=[],不需要 eventDraft。
+- 评论(kind=COMMENT)统一返回 section=QUESTION,tags=[],不需要 eventDraft。
 
-返回严格 JSON(不要 markdown 围栏、不要前后多余文字)。section!=EVENT 时不需要 eventIntent/eventDraft 字段:
-{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...],"eventIntent":"ORGANIZING|DISCUSSING","eventDraft":{...},"eventDraftComplete":bool,"eventDraftMissing":[...]}`;
+返回严格 JSON(不要 markdown 围栏、不要前后多余文字):
+{"verdict":"pass|flag|reject","reason":"一句中文","section":"...","tags":[...],"categories":[...]}`;
 
 const XIAO_T_SYSTEM_PROMPT = `你是「小T」,跨性别社群里的 AI 陪伴员。
 
@@ -165,7 +104,7 @@ function fallbackDecision(reason: string): ModerationDecision {
   return {
     verdict: "flag",
     reason,
-    section: "POST",
+    section: "QUESTION",
     tags: [],
     categories: [],
     classifier: "FALLBACK",
@@ -173,64 +112,11 @@ function fallbackDecision(reason: string): ModerationDecision {
   };
 }
 
-const EVENT_CATEGORIES: EventCategory[] = [
-  "PSYCH_SUPPORT", "SOCIAL", "SPORTS", "ONLINE_GAMING",
-  "STUDY", "WORKSHOP", "ADVOCACY", "OTHER",
-];
-const EVENT_FORMATS: EventFormat[] = ["ONLINE", "OFFLINE", "HYBRID"];
-
-function normalizeEventIntent(value: unknown): EventIntent | undefined {
-  if (typeof value !== "string") return undefined;
+function normalizeSection(value: unknown): ModeratableSection {
+  if (typeof value !== "string") return "QUESTION";
   const v = value.toUpperCase();
-  if (v === "ORGANIZING" || v === "DISCUSSING") return v;
-  return undefined;
-}
-
-function normalizeEventDraft(value: unknown): EventDraft | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const v = value as Record<string, unknown>;
-  const out: EventDraft = {};
-  if (typeof v.title === "string" && v.title.trim()) out.title = v.title.trim().slice(0, 200);
-  if (typeof v.description === "string" && v.description.trim())
-    out.description = v.description.trim().slice(0, 8000);
-  if (typeof v.category === "string") {
-    const upper = v.category.toUpperCase() as EventCategory;
-    if (EVENT_CATEGORIES.includes(upper)) out.category = upper;
-  }
-  if (typeof v.format === "string") {
-    const upper = v.format.toUpperCase() as EventFormat;
-    if (EVENT_FORMATS.includes(upper)) out.format = upper;
-  }
-  if (typeof v.startAt === "string" && !Number.isNaN(Date.parse(v.startAt))) out.startAt = v.startAt;
-  if (typeof v.endAt === "string" && !Number.isNaN(Date.parse(v.endAt))) out.endAt = v.endAt;
-  if (typeof v.city === "string" && v.city.trim()) out.city = v.city.trim().slice(0, 40);
-  if (typeof v.preciseAddr === "string" && v.preciseAddr.trim())
-    out.preciseAddr = v.preciseAddr.trim().slice(0, 200);
-  if (typeof v.onlineUrl === "string" && v.onlineUrl.trim()) out.onlineUrl = v.onlineUrl.trim();
-  if (typeof v.capacity === "number" && Number.isFinite(v.capacity) && v.capacity > 0)
-    out.capacity = Math.min(10000, Math.floor(v.capacity));
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function computeDraftCompleteness(
-  draft: EventDraft | undefined,
-): { complete: boolean; missing: string[] } {
-  if (!draft) return { complete: false, missing: ["标题", "描述", "时间", "形式", "类别"] };
-  const missing: string[] = [];
-  if (!draft.title) missing.push("标题");
-  if (!draft.description) missing.push("描述");
-  if (!draft.category) missing.push("活动类别");
-  if (!draft.format) missing.push("线上/线下");
-  if (!draft.startAt) missing.push("开始时间");
-  if (!draft.endAt) missing.push("结束时间");
-  if ((draft.format === "OFFLINE" || draft.format === "HYBRID") && !draft.city) {
-    missing.push("城市");
-  }
-  // End must be after start.
-  if (draft.startAt && draft.endAt && Date.parse(draft.endAt) <= Date.parse(draft.startAt)) {
-    missing.push("有效的时间范围(结束须晚于开始)");
-  }
-  return { complete: missing.length === 0, missing };
+  if (v === "QUESTION" || v === "OFFLINE_MEETUP" || v === "MEDICAL" || v === "RESOURCE" || v === "REFLECTION") return v;
+  return "QUESTION";
 }
 
 function parseJsonOutput(text: string): Record<string, unknown> | null {
@@ -261,13 +147,6 @@ function normalizeVerdict(value: unknown): ModerationVerdict | null {
   const v = value.toLowerCase();
   if (v === "pass" || v === "flag" || v === "reject") return v;
   return null;
-}
-
-function normalizeSection(value: unknown): ModeratableSection {
-  if (typeof value !== "string") return "POST";
-  const v = value.toUpperCase();
-  if (v === "MEDICAL" || v === "RESOURCE" || v === "EVENT" || v === "POST") return v;
-  return "POST";
 }
 
 function normalizeStringArray(value: unknown, max: number): string[] {
@@ -369,9 +248,7 @@ export async function moderateAndClassify(
   try {
     const result = await withRetry(
       // Generous token budget — deepseek-v4-flash spends a lot of its output
-      // on the "thinking" block before emitting JSON; plus the full schema
-      // (verdict + section + tags + categories + eventIntent + eventDraft)
-      // can take 300+ tokens by itself. Keep room for both.
+      // on the "thinking" block before emitting JSON.
       () => callLLM(env, MOD_SYSTEM_PROMPT, buildModerationUserMessage(input), 9000),
       { label: "moderate", shouldRetry: shouldRetryLlm },
     );
@@ -402,32 +279,6 @@ export async function moderateAndClassify(
           ? "内容已转人工复核"
           : "内容符合规范";
 
-  let eventIntent: EventIntent | undefined;
-  let eventDraft: EventDraft | undefined;
-  let eventDraftComplete: boolean | undefined;
-  let eventDraftMissing: string[] | undefined;
-  if (section === "EVENT") {
-    // Default to DISCUSSING when the model omits intent — it's the safer
-    // interpretation (we don't want to block VERIFIED users for talking
-    // about an activity).
-    eventIntent = normalizeEventIntent(parsed.eventIntent) ?? "DISCUSSING";
-    if (eventIntent === "ORGANIZING") {
-      eventDraft = normalizeEventDraft(parsed.eventDraft);
-      const overrideComplete = typeof parsed.eventDraftComplete === "boolean"
-        ? parsed.eventDraftComplete
-        : undefined;
-      const computed = computeDraftCompleteness(eventDraft);
-      eventDraftComplete = overrideComplete ?? computed.complete;
-      eventDraftMissing = Array.isArray(parsed.eventDraftMissing)
-        ? parsed.eventDraftMissing.filter((s): s is string => typeof s === "string").slice(0, 10)
-        : computed.missing;
-      if (eventDraftComplete && computed.missing.length > 0) {
-        eventDraftComplete = false;
-        eventDraftMissing = computed.missing;
-      }
-    }
-  }
-
   return {
     verdict,
     reason,
@@ -436,10 +287,6 @@ export async function moderateAndClassify(
     categories,
     classifier: "LLM",
     raw,
-    eventIntent,
-    eventDraft,
-    eventDraftComplete,
-    eventDraftMissing,
   };
 }
 
@@ -616,9 +463,6 @@ export const __internal = {
   normalizeVerdict,
   normalizeSection,
   normalizeStringArray,
-  normalizeEventIntent,
-  normalizeEventDraft,
-  computeDraftCompleteness,
   extractText,
   fallbackDecision,
   shouldRetryLlm,

@@ -5,15 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { toQueryRoute } from "@/lib/query-routing";
 
-const GUEST_ACCESSIBLE_EVENT_DETAIL_PATTERN = /^\/events\/[^/]+$/;
 const GUEST_ACCESSIBLE_USER_PROFILE_PATTERN = /^\/u\/[^/]+$/;
 
 function isGuestAccessiblePath(pathname: string): boolean {
-  return (
-    pathname === "/events" ||
-    GUEST_ACCESSIBLE_EVENT_DETAIL_PATTERN.test(pathname) ||
-    GUEST_ACCESSIBLE_USER_PROFILE_PATTERN.test(pathname)
-  );
+  return GUEST_ACCESSIBLE_USER_PROFILE_PATTERN.test(pathname);
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
