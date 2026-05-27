@@ -121,6 +121,7 @@ export type ReportTarget = (typeof ReportTarget)[keyof typeof ReportTarget];
 // ============================================================
 
 export const PostSection = {
+  POST: "POST",
   QUESTION: "QUESTION",
   OFFLINE_MEETUP: "OFFLINE_MEETUP",
   MEDICAL: "MEDICAL",
@@ -130,6 +131,7 @@ export const PostSection = {
 export type PostSection = (typeof PostSection)[keyof typeof PostSection];
 
 export const POST_SECTION_LABEL: Record<PostSection, string> = {
+  POST: "提问求助",
   QUESTION: "提问求助",
   OFFLINE_MEETUP: "线下交友",
   MEDICAL: "医疗信息",
