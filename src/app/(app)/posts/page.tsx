@@ -108,8 +108,7 @@ function PostsListInner() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="广场"
-        title="动态、医疗、资源,都在这里"
-        description="任何认证成员都可以发帖。系统会自动审核和分类,你只需要把话说清楚。"
+        title="欢迎在这里分享信息和资源"
         actions={
           canCreatePost(user) ? (
             <Button asChild>
