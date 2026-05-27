@@ -6,8 +6,8 @@ export function Footer() {
     <footer className="hidden md:block border-t border-border bg-bg-warm/60">
       <div className="container py-10 grid gap-8 md:grid-cols-3">
         <div className="space-y-2">
-          <div className="font-serif text-h3 tracking-tight">跨性别社群</div>
-          <p className="text-sm text-ink-muted max-w-xs">私域跨性别社群交流平台。门槛清晰，隐私可控，按信任分层。</p>
+          <div className="font-serif text-h3 tracking-tight">跨性别空间</div>
+          <p className="text-sm text-ink-muted max-w-xs">一个让我们彼此看见，也彼此保护的地方。</p>
         </div>
         <nav className="grid grid-cols-2 gap-2 text-sm text-ink-muted">
           <Link href={toQueryRoute("/about")} className="hover:text-ink">关于平台</Link>

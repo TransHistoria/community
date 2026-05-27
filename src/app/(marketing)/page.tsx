@@ -218,13 +218,13 @@ function HomePageInner() {
           私域 · 邀请制
         </Badge>
         <h1 className="font-serif text-display-lg text-balance leading-[1.05] tracking-tight">
-          为社群而建的空间。
+          为社群而建的空间
         </h1>
         <p className="text-lg text-ink-muted leading-relaxed max-w-lg mx-auto">
-          一个让我们彼此看见，也彼此保护的地方。
+          一个让我们彼此看见，也彼此保护的地方
         </p>
         <p className="text-lg text-ink-muted leading-relaxed max-w-lg mx-auto">
-          让相遇更安全，让资源在社群里流动。
+          让相遇更安全，让资源在社群里流动
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
           {user ? (
