@@ -43,7 +43,7 @@ files.post("/", requireAuth, async (c) => {
     customMetadata: { uploaderId, purpose },
   });
 
-  return c.json({ ok: true, url: `/api/files/${key}` });
+  return c.json({ ok: true, url: `${new URL(c.req.url).origin}/api/files/${key}` });
 });
 
 // GET /api/files/* — serve a file from R2

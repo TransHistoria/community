@@ -7,7 +7,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Trash2, ArrowLeft, Pencil, Heart, Bookmark, UserPlus, UserMinus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
 import { api, type Post } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
@@ -221,7 +220,14 @@ function PostDetailInner() {
           ) : null}
         </div>
         <div className="prose-trans text-base leading-relaxed">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+              img: ({ src, alt }) => {
+                if (!src) return null;
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_FALLBACK_URL;
+                const resolved = apiUrl && src.startsWith("/") ? `${apiUrl}${src}` : src;
+                return <img src={resolved} alt={alt || ''} style={{maxWidth:'100%',height:'auto',borderRadius:'8px',margin:'12px 0'}} />;
+              }
+            }}>
             {post.body}
           </ReactMarkdown>
         </div>
