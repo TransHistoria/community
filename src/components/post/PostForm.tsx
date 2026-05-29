@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Paperclip, X, Loader2 } from "lucide-react";
+import { ImagePlus, Paperclip, Loader2, Eye, Edit3 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +14,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast-context";
 import { toQueryRoute } from "@/lib/query-routing";
 import { useAuth } from "@/contexts/AuthContext";
-import { PostSection, POST_SECTION_LABEL } from "@/lib/enums";
 
 type Mode = "create" | "edit";
 
@@ -24,24 +25,8 @@ type Initial = Partial<{
   status: string;
 }>;
 
-type UploadedFile = {
-  url: string;
-  previewUrl: string;
-  name: string;
-  size: number;
-  type: "image" | "attachment";
-};
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function displayName(name: string): string {
-  const dotIdx = name.lastIndexOf(".");
-  return dotIdx > 0 ? name.slice(0, dotIdx) : name;
-}
+const IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const ATTACHMENT_MAX_SIZE = 10 * 1024 * 1024;
 
 export function PostForm({
   mode,
@@ -61,52 +46,29 @@ export function PostForm({
   const [body, setBody] = React.useState(initial?.body ?? "");
   const [section, setSection] = React.useState(initial?.section ?? "QUESTION");
   const [visibility, setVisibility] = React.useState(initial?.visibility ?? "VERIFIED");
+  const [previewMode, setPreviewMode] = React.useState(false);
   const isDraftEdit = mode === "edit" && initial?.status === "DRAFT";
   const isAdmin = user?.tier === "ADMIN";
   const [submitting, setSubmitting] = React.useState(false);
-
-  const [uploads, setUploads] = React.useState<UploadedFile[]>([]);
   const [uploading, setUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const attachmentInputRef = React.useRef<HTMLInputElement>(null);
 
-  const blobUrlsRef = React.useRef<string[]>([]);
-
-  React.useEffect(() => {
-    return () => {
-      for (const url of blobUrlsRef.current) {
-        URL.revokeObjectURL(url);
-      }
-    };
-  }, []);
-
   const uploadFile = React.useCallback(
     async (file: File, purpose: string) => {
       const isImage = file.type.startsWith("image/");
-      const type = isImage ? "image" as const : "attachment" as const;
-      const maxSize = isImage ? 8 * 1024 * 1024 : 20 * 1024 * 1024;
+      const maxSize = isImage ? IMAGE_MAX_SIZE : ATTACHMENT_MAX_SIZE;
       if (file.size > maxSize) {
         toast({
-          title: `文件过大，${isImage ? "图片" : "附件"}不能超过 ${isImage ? "8MB" : "20MB"}`,
+          title: `文件过大，${isImage ? "图片" : "附件"}不能超过 ${isImage ? "5MB" : "10MB"}`,
           variant: "danger",
         });
         return;
       }
 
-      const blobUrl = URL.createObjectURL(file);
-      blobUrlsRef.current.push(blobUrl);
-
       setUploading(true);
       try {
         const res = await api.files.upload(file, purpose);
-        const entry: UploadedFile = {
-          url: res.url,
-          previewUrl: blobUrl,
-          name: file.name,
-          size: file.size,
-          type,
-        };
-        setUploads((prev) => [...prev, entry]);
 
         const markdown = isImage
           ? `![${file.name}](${res.url})`
@@ -129,8 +91,6 @@ export function PostForm({
         }
         toast({ title: isImage ? "图片已插入" : "附件已插入", variant: "success" });
       } catch (err) {
-        URL.revokeObjectURL(blobUrl);
-        blobUrlsRef.current = blobUrlsRef.current.filter((u) => u !== blobUrl);
         const msg = err instanceof Error ? err.message : "上传失败";
         toast({ title: "上传失败", description: msg, variant: "danger" });
       } finally {
@@ -139,15 +99,6 @@ export function PostForm({
     },
     [body.length, toast],
   );
-
-  function removeUpload(idx: number) {
-    const removed = uploads[idx];
-    if (removed) {
-      URL.revokeObjectURL(removed.previewUrl);
-      blobUrlsRef.current = blobUrlsRef.current.filter((u) => u !== removed.previewUrl);
-    }
-    setUploads((prev) => prev.filter((_, i) => i !== idx));
-  }
 
   async function submit(
     e: React.FormEvent,
@@ -218,18 +169,61 @@ export function PostForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="body">正文</Label>
-            <Textarea
-              id="body"
-              ref={bodyRef}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="写得具体一点，让大家更容易帮到你或被你帮到。支持 Markdown。"
-              minLength={5}
-              maxLength={20000}
-              rows={10}
-              required
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="body">正文</Label>
+              <div className="flex items-center gap-1 rounded-lg border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode(false)}
+                  className={`px-3 py-1 text-xs transition-colors ${!previewMode ? "bg-primary text-white" : "text-ink-muted hover:text-ink"}`}
+                >
+                  <Edit3 className="h-3 w-3 inline mr-1" />
+                  编辑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode(true)}
+                  className={`px-3 py-1 text-xs transition-colors ${previewMode ? "bg-primary text-white" : "text-ink-muted hover:text-ink"}`}
+                >
+                  <Eye className="h-3 w-3 inline mr-1" />
+                  预览
+                </button>
+              </div>
+            </div>
+            {previewMode ? (
+              <div className="min-h-[260px] rounded-md border border-border bg-card p-4">
+                {body.trim() ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                    img: ({ src, alt }) => {
+                      if (!src) return null;
+                      const resolved = src.startsWith("/api/files/") ? api.files.url(src) : src;
+                      return <img src={resolved} alt={alt || ''} style={{maxWidth:'100%',height:'auto',borderRadius:'8px',margin:'12px 0'}} />;
+                    },
+                    a: ({ href, children, ...props }) => {
+                      if (!href) return <a {...props}>{children}</a>;
+                      const resolved = href.startsWith("/api/files/") ? api.files.url(href) : href;
+                      return <a href={resolved} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                    }
+                  }}>
+                    {body}
+                  </ReactMarkdown>
+                ) : (
+                  <p className="text-ink-subtle text-sm italic">暂无内容</p>
+                )}
+              </div>
+            ) : (
+              <Textarea
+                id="body"
+                ref={bodyRef}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="写得具体一点，让大家更容易帮到你或被你帮到。支持 Markdown。"
+                minLength={5}
+                maxLength={20000}
+                rows={10}
+                required
+              />
+            )}
             <p className="text-xs text-ink-subtle">{body.length} / 20000</p>
           </div>
 
@@ -301,51 +295,9 @@ export function PostForm({
               </span>
             )}
             <span className="text-xs text-ink-subtle">
-              图片 8MB · 附件 20MB
+              图片 5MB · 附件 10MB
             </span>
           </div>
-
-          {uploads.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-ink-muted">已插入的文件</div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {uploads.map((f, idx) => (
-                  <div
-                    key={`${f.url}-${idx}`}
-                    className="relative group rounded-lg border border-border bg-card overflow-hidden"
-                  >
-                    {f.type === "image" ? (
-                      <div className="aspect-video bg-muted flex items-center justify-center">
-                        <img
-                          src={f.previewUrl}
-                          alt={f.name}
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div className="aspect-video bg-muted flex items-center justify-center p-3">
-                        <div className="text-center space-y-1">
-                          <Paperclip className="h-6 w-6 mx-auto text-ink-muted" />
-                          <p className="text-xs text-ink-muted truncate max-w-[140px]" title={f.name}>
-                            {displayName(f.name)}
-                          </p>
-                          <p className="text-[10px] text-ink-subtle">{formatSize(f.size)}</p>
-                        </div>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeUpload(idx)}
-                      className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="移除"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

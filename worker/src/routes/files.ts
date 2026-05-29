@@ -28,8 +28,8 @@ const ALLOWED_ATTACHMENT_TYPES: Record<string, string> = {
   "application/x-7z-compressed": "7z",
 };
 
-const IMAGE_MAX_SIZE = 8 * 1024 * 1024; // 8 MB
-const ATTACHMENT_MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+const IMAGE_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+const ATTACHMENT_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 // POST /api/files — upload a file to R2
 files.post("/", requireAuth, async (c) => {
@@ -55,7 +55,7 @@ files.post("/", requireAuth, async (c) => {
   }
   const maxSize = isImage ? IMAGE_MAX_SIZE : ATTACHMENT_MAX_SIZE;
   if (file.size > maxSize) {
-    const limit = isImage ? "8MB" : "20MB";
+    const limit = isImage ? "5MB" : "10MB";
     return c.json({ error: `文件不能超过 ${limit}` }, 400);
   }
 
