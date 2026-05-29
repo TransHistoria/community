@@ -6,13 +6,30 @@ import { requireAuth } from "@/middleware/auth";
 
 const files = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const ALLOWED_TYPES: Record<string, string> = {
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
 };
-const MAX_SIZE = 4 * 1024 * 1024; // 4 MB
+
+const ALLOWED_ATTACHMENT_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "application/zip": "zip",
+  "application/x-rar-compressed": "rar",
+  "application/x-7z-compressed": "7z",
+};
+
+const IMAGE_MAX_SIZE = 8 * 1024 * 1024; // 8 MB
+const ATTACHMENT_MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 
 // POST /api/files — upload a file to R2
 files.post("/", requireAuth, async (c) => {
@@ -31,9 +48,18 @@ files.post("/", requireAuth, async (c) => {
   }
   const file = fileEntry as Blob;
 
-  const ext = ALLOWED_TYPES[file.type];
-  if (!ext) return c.json({ error: "仅支持 JPG、PNG、WebP、GIF" }, 400);
-  if (file.size > MAX_SIZE) return c.json({ error: "文件不能超过 4MB" }, 400);
+  const isImage = ALLOWED_IMAGE_TYPES[file.type] !== undefined;
+  const isAttachment = ALLOWED_ATTACHMENT_TYPES[file.type] !== undefined;
+  if (!isImage && !isAttachment) {
+    return c.json({ error: "不支持的文件格式" }, 400);
+  }
+  const maxSize = isImage ? IMAGE_MAX_SIZE : ATTACHMENT_MAX_SIZE;
+  if (file.size > maxSize) {
+    const limit = isImage ? "8MB" : "20MB";
+    return c.json({ error: `文件不能超过 ${limit}` }, 400);
+  }
+
+  const ext = isImage ? ALLOWED_IMAGE_TYPES[file.type] : ALLOWED_ATTACHMENT_TYPES[file.type];
 
   const purpose = ((form.get("purpose") as string | null) ?? "misc").replace(/[^a-z0-9_-]/gi, "");
   const key = `${purpose}/${uploaderId}/${Date.now()}.${ext}`;
@@ -43,7 +69,7 @@ files.post("/", requireAuth, async (c) => {
     customMetadata: { uploaderId, purpose },
   });
 
-  return c.json({ ok: true, url: `${new URL(c.req.url).origin}/api/files/${key}` });
+  return c.json({ ok: true, url: `/api/files/${key}` });
 });
 
 // GET /api/files/* — serve a file from R2

@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CommentSection } from "@/components/post/CommentSection";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { useToast } from "@/components/ui/toast-context";
-import { TAG_LABEL, parsePostTags } from "@/lib/post-tags";
+import { POST_SECTION_LABEL } from "@/lib/enums";
 import { relativeTime } from "@/lib/utils";
 import { getQueryRoute, toQueryRoute } from "@/lib/query-routing";
 
@@ -60,7 +60,6 @@ function PostDetailInner() {
   const rejected = post.status === "REJECTED";
   const hidden = post.status === "HIDDEN";
   const draft = post.status === "DRAFT";
-  const tags = parsePostTags(post.tags);
 
   async function remove() {
     if (!id) return;
@@ -181,17 +180,11 @@ function PostDetailInner() {
       ) : null}
 
       <article className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {tags.length > 0 ? (
-            tags.map((t) => (
-              <Badge key={t} variant="pink">
-                {TAG_LABEL[t] ?? t}
-              </Badge>
-            ))
-          ) : (
-            <Badge variant="outline">动态</Badge>
-          )}
-          {post.section === "MEDICAL" && post.hospital ? (
+        <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="pink" className="shrink-0">
+              {POST_SECTION_LABEL[post.section as keyof typeof POST_SECTION_LABEL] ?? "动态"}
+            </Badge>
+            {post.section === "MEDICAL" && post.hospital ? (
             <Badge variant="outline">{post.hospital}</Badge>
           ) : null}
         </div>
@@ -223,9 +216,13 @@ function PostDetailInner() {
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
               img: ({ src, alt }) => {
                 if (!src) return null;
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_FALLBACK_URL;
-                const resolved = apiUrl && src.startsWith("/") ? `${apiUrl}${src}` : src;
+                const resolved = src.startsWith("/api/files/") ? api.files.url(src) : src;
                 return <img src={resolved} alt={alt || ''} style={{maxWidth:'100%',height:'auto',borderRadius:'8px',margin:'12px 0'}} />;
+              },
+              a: ({ href, children, ...props }) => {
+                if (!href) return <a {...props}>{children}</a>;
+                const resolved = href.startsWith("/api/files/") ? api.files.url(href) : href;
+                return <a href={resolved} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
               }
             }}>
             {post.body}

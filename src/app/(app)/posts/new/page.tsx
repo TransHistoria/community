@@ -32,7 +32,7 @@ function NewPostInner() {
       <PageHeader
         eyebrow="发帖"
         title="发布到广场"
-        description="选择板块,正文支持 Markdown。提交后内容会经过 AI 审核;违规会被退回,边界内容会进入人工复核。"
+        description="用户自选板块,正文支持 Markdown。提交后内容会经过 AI 审核;违规会被退回,边界内容会进入人工复核。"
       />
       <PostForm mode="create" />
     </div>

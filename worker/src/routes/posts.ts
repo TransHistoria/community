@@ -121,6 +121,15 @@ function normalizePostSection(decisionSection: string): string {
   return "QUESTION";
 }
 
+function userPickedTags(section: string): string[] {
+  if (section === "QUESTION") return ["question-help"];
+  if (section === "OFFLINE_MEETUP") return ["offline-meetup"];
+  if (section === "MEDICAL") return ["medical-experience"];
+  if (section === "RESOURCE") return ["resource-offer"];
+  if (section === "REFLECTION") return ["reflection"];
+  return [];
+}
+
 async function notifyModerationOutcome(
   env: Env,
   authorEmail: string | null,
@@ -381,6 +390,7 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
     title: string;
     body: string;
     visibility?: string;
+    section?: string;
   }>();
   const title = (body.title ?? "").trim().slice(0, 200);
   const text = (body.body ?? "").trim();
@@ -394,12 +404,16 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
 
   if (asDraft) {
     const draftId = newId();
+    const draftSection = ["QUESTION","OFFLINE_MEETUP","MEDICAL","RESOURCE","REFLECTION"].includes(body.section ?? "")
+      ? body.section!
+      : "QUESTION";
+    const draftTags = userPickedTags(draftSection);
     await c.env.DB
       .prepare(
-        `INSERT INTO posts (id, author_id, section, title, body, visibility, status)
-         VALUES (?, ?, 'POST', ?, ?, ?, 'DRAFT')`,
+        `INSERT INTO posts (id, author_id, section, title, body, tags, visibility, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT')`,
       )
-      .bind(draftId, viewer.id, title, text, visibility)
+      .bind(draftId, viewer.id, draftSection, title, text, JSON.stringify(draftTags), visibility)
       .run();
     return c.json({ ok: true, id: draftId, status: "DRAFT" });
   }
@@ -443,7 +457,14 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
 
   const finalVerdict = decision.verdict;
   const finalReason = decision.reason;
-  const section = normalizePostSection(decision.section);
+  const section = ["QUESTION","OFFLINE_MEETUP","MEDICAL","RESOURCE","REFLECTION"].includes(body.section ?? "")
+    ? body.section!
+    : normalizePostSection(decision.section);
+
+  // When user chose a section, derive matching tags so the post
+  // shows the correct badge and appears under the right filter tab.
+  const userTags = userPickedTags(section);
+  const tags = userTags.length > 0 ? userTags : decision.tags;
   const status = statusForVerdict(finalVerdict);
 
   await c.env.DB.prepare(
@@ -459,7 +480,7 @@ posts.post("/", requireAuth, requireTier("VERIFIED"), async (c) => {
       section,
       title,
       text,
-      JSON.stringify(decision.tags),
+      JSON.stringify(tags),
       visibility,
       status,
       finalVerdict,
@@ -524,6 +545,7 @@ posts.patch("/:id", requireAuth, async (c) => {
     title?: string;
     body?: string;
     visibility?: string;
+    section?: string;
     adminStatus?: "DRAFT" | "PUBLISHED";
   }>();
 
@@ -585,17 +607,21 @@ posts.patch("/:id", requireAuth, async (c) => {
 
   const finalVerdict = decision.verdict;
   const finalReason = decision.reason;
-  const section = normalizePostSection(decision.section);
+  const section = ["QUESTION","OFFLINE_MEETUP","MEDICAL","RESOURCE","REFLECTION"].includes(body.section ?? "")
+    ? body.section!
+    : normalizePostSection(decision.section);
+  const userTags = userPickedTags(section);
+  const tags = userTags.length > 0 ? userTags : decision.tags;
   const status = statusForVerdict(finalVerdict);
 
   if (asDraft) {
     await c.env.DB.prepare(
       `UPDATE posts SET
-         title = ?, body = ?, visibility = ?, status = 'DRAFT',
+         title = ?, body = ?, section = ?, tags = ?, visibility = ?, status = 'DRAFT',
          updated_at = datetime('now')
        WHERE id = ?`,
     )
-      .bind(nextTitle, nextText, nextVisibility, id)
+      .bind(nextTitle, nextText, section, JSON.stringify(tags), nextVisibility, id)
       .run();
     return c.json({ ok: true, status: "DRAFT" });
   }
@@ -612,7 +638,7 @@ posts.patch("/:id", requireAuth, async (c) => {
       nextTitle,
       nextText,
       section,
-      JSON.stringify(decision.tags),
+      JSON.stringify(tags),
       nextVisibility,
       status,
       finalVerdict,

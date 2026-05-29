@@ -5,7 +5,7 @@ import { MessageCircle, Heart } from "lucide-react";
 import type { Post } from "@/lib/api";
 import { relativeTime } from "@/lib/utils";
 import { toQueryRoute } from "@/lib/query-routing";
-import { TAG_LABEL, parsePostTags } from "@/lib/post-tags";
+import { POST_SECTION_LABEL } from "@/lib/enums";
 
 type CardPost = Post & { like_count?: number };
 
@@ -14,7 +14,6 @@ export function PostCard({ post }: { post: CardPost }) {
   const isHidden = post.status === "HIDDEN";
   const isRejected = post.status === "REJECTED";
   const isDraft = post.status === "DRAFT";
-  const tags = parsePostTags(post.tags);
   // The list endpoint exposes `like_count` (snake_case); the detail endpoint
   // exposes `likeCount` (camelCase). Read both so the card works in either
   // context (list views, bookmarks, drafts).
@@ -25,15 +24,9 @@ export function PostCard({ post }: { post: CardPost }) {
       <Card className="h-full transition-all group-hover:shadow-lift group-hover:-translate-y-0.5">
         <CardContent className="pt-6 space-y-3">
           <div className="flex items-center gap-2 flex-wrap text-xs">
-            {tags.length > 0 ? (
-              tags.slice(0, 3).map((t) => (
-                <Badge key={t} variant="pink">
-                  {TAG_LABEL[t] ?? t}
-                </Badge>
-              ))
-            ) : (
-              <Badge variant="outline">动态</Badge>
-            )}
+            <Badge variant="pink" className="shrink-0">
+              {POST_SECTION_LABEL[post.section as keyof typeof POST_SECTION_LABEL] ?? "动态"}
+            </Badge>
             {post.section === "MEDICAL" && post.hospital ? (
               <Badge variant="outline">{post.hospital}</Badge>
             ) : null}

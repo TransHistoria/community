@@ -208,7 +208,7 @@ export interface ModerationDecision {
 export interface Post {
   id: string;
   author_id: string;
-  section: "POST" | "MEDICAL" | "RESOURCE";
+  section: "POST" | "QUESTION" | "OFFLINE_MEETUP" | "MEDICAL" | "RESOURCE" | "REFLECTION";
   title: string;
   body: string;
   tags: string;
@@ -470,7 +470,7 @@ export const api = {
 
     get: (id: string) => get<{ post: Post }>(`/api/posts/${id}`),
 
-    create: (data: { title: string; body: string; visibility?: string }, asDraft = false) =>
+    create: (data: { title: string; body: string; section: string; visibility?: string }, asDraft = false) =>
       post<{ ok: boolean; id: string; status: string }>(
         `/api/posts${asDraft ? "?draft=1" : ""}`,
         data,
@@ -478,7 +478,7 @@ export const api = {
 
     update: (
       id: string,
-      data: Partial<{ title: string; body: string; visibility: string }> & { adminStatus?: "DRAFT" | "PUBLISHED" },
+      data: Partial<{ title: string; body: string; section: string; visibility: string }> & { adminStatus?: "DRAFT" | "PUBLISHED" },
       asDraft = false,
     ) =>
       patch<{ ok: boolean; status: string }>(`/api/posts/${id}${asDraft ? "?draft=1" : ""}`, data),
