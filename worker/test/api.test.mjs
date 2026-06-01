@@ -1445,7 +1445,7 @@ async function main() {
 
   await test("POST /api/files — disallowed MIME type → 400", async () => {
     const form = new FormData();
-    form.append("file", new Blob(["x"], { type: "text/plain" }), "x.txt");
+    form.append("file", new Blob(["<html></html>"], { type: "text/html" }), "x.html");
     const res = await fetch(`${BASE}/api/files`, {
       method: "POST",
       body: form,

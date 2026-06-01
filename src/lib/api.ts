@@ -2,7 +2,7 @@
 // All mutations that were previously Next.js server actions are now fetch()
 // calls to the worker.
 
-const LEGACY_WORKER_URL = "https://communityapi.transhistoria.org";
+const LEGACY_WORKER_URL = "https://transcommunity.cyanmint.workers.dev";
 
 function normalizeUrl(url?: string): string {
   return (url || "").trim().replace(/\/$/, "");

@@ -48,7 +48,7 @@ jobs:
       - name: Build static site
         run: pnpm run frontend
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://transcommunity.cyanmint.workers.dev' }}
           NEXT_PUBLIC_API_FALLBACK_URL: ${{ vars.NEXT_PUBLIC_API_FALLBACK_URL }}
           NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH }}
           NEXT_PUBLIC_DEBUG: ${{ secrets.DEBUG != '' && '1' || '' }}
